@@ -18,3 +18,10 @@ from neat.parallel import ParallelEvaluator
 from neat.checkpoint import Checkpointer
 from neat.innovation import InnovationTracker
 from neat.genes import DefaultNodeGene, DefaultConnectionGene
+from neat.anji_compat import (
+    AnjiGenome,
+    AnjiInnovationTracker,
+    AnjiNoStagnation,
+    AnjiReproduction,
+    AnjiSpeciesSet,
+)

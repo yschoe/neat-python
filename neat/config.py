@@ -154,6 +154,7 @@ class Config:
                 ConfigParameter('fitness_threshold', float),
                 ConfigParameter('reset_on_extinction', bool),
                 ConfigParameter('no_fitness_termination', bool, False),
+                ConfigParameter('algorithm_mode', str, 'default', optional=True),
                 ConfigParameter('seed', int, None, optional=True)]
 
     def __init__(self, genome_type, reproduction_type, species_set_type, stagnation_type, filename, config_information=None):
@@ -206,18 +207,93 @@ class Config:
                 raise UnknownConfigItemError("Unknown (section 'NEAT') configuration items:\n" + "\n\t".join(unknown_list))
             raise UnknownConfigItemError(f"Unknown (section 'NEAT') configuration item {unknown_list[0]!s}")
 
+        self._apply_algorithm_mode_overrides()
+
         # Parse type sections.
-        genome_dict = dict(parameters.items(genome_type.__name__))
-        self.genome_config = genome_type.parse_config(genome_dict)
+        genome_section = self._section_name_for_type(self.genome_type)
+        if not parameters.has_section(genome_section):
+            raise RuntimeError(f"'{genome_section}' section not found in NEAT configuration file.")
+        genome_dict = dict(parameters.items(genome_section))
+        self.genome_config = self.genome_type.parse_config(genome_dict)
 
-        species_set_dict = dict(parameters.items(species_set_type.__name__))
-        self.species_set_config = species_set_type.parse_config(species_set_dict)
+        species_section = self._section_name_for_type(self.species_set_type)
+        if not parameters.has_section(species_section):
+            raise RuntimeError(f"'{species_section}' section not found in NEAT configuration file.")
+        species_set_dict = dict(parameters.items(species_section))
+        self.species_set_config = self.species_set_type.parse_config(species_set_dict)
 
-        stagnation_dict = dict(parameters.items(stagnation_type.__name__))
-        self.stagnation_config = stagnation_type.parse_config(stagnation_dict)
+        stagnation_section = self._section_name_for_type(self.stagnation_type)
+        if not parameters.has_section(stagnation_section):
+            raise RuntimeError(f"'{stagnation_section}' section not found in NEAT configuration file.")
+        stagnation_dict = dict(parameters.items(stagnation_section))
+        self.stagnation_config = self.stagnation_type.parse_config(stagnation_dict)
 
-        reproduction_dict = dict(parameters.items(reproduction_type.__name__))
-        self.reproduction_config = reproduction_type.parse_config(reproduction_dict)
+        reproduction_section = self._section_name_for_type(self.reproduction_type)
+        if not parameters.has_section(reproduction_section):
+            raise RuntimeError(f"'{reproduction_section}' section not found in NEAT configuration file.")
+        reproduction_dict = dict(parameters.items(reproduction_section))
+        self.reproduction_config = self.reproduction_type.parse_config(reproduction_dict)
+
+    @staticmethod
+    def _section_name_for_type(t):
+        return getattr(t, 'config_section_name', t.__name__)
+
+    def _apply_algorithm_mode_overrides(self):
+        mode = str(self.algorithm_mode).strip().lower()
+        if mode in ('', 'default', 'neat-python', 'neat_python'):
+            self.algorithm_mode = 'default'
+            return
+        if mode != 'anji':
+            raise RuntimeError(
+                f"Unknown algorithm_mode: {self.algorithm_mode!r}. "
+                "Expected 'default' or 'anji'."
+            )
+
+        # Resolve ANJI compatibility classes lazily to avoid import cycles.
+        from neat.anji_compat import (
+            AnjiGenome,
+            AnjiNoStagnation,
+            AnjiReproduction,
+            AnjiSpeciesSet,
+        )
+        from neat.genome import DefaultGenome
+        from neat.reproduction import DefaultReproduction
+        from neat.species import DefaultSpeciesSet
+        from neat.stagnation import DefaultStagnation
+
+        if self.genome_type is DefaultGenome:
+            self.genome_type = AnjiGenome
+        elif self.genome_type is not AnjiGenome:
+            raise RuntimeError(
+                "algorithm_mode = anji currently supports DefaultGenome "
+                "or AnjiGenome as genome_type."
+            )
+
+        if self.reproduction_type is DefaultReproduction:
+            self.reproduction_type = AnjiReproduction
+        elif self.reproduction_type is not AnjiReproduction:
+            raise RuntimeError(
+                "algorithm_mode = anji currently supports DefaultReproduction "
+                "or AnjiReproduction as reproduction_type."
+            )
+
+        if self.species_set_type is DefaultSpeciesSet:
+            self.species_set_type = AnjiSpeciesSet
+        elif self.species_set_type is not AnjiSpeciesSet:
+            raise RuntimeError(
+                "algorithm_mode = anji currently supports DefaultSpeciesSet "
+                "or AnjiSpeciesSet as species_set_type."
+            )
+
+        if self.stagnation_type is DefaultStagnation:
+            self.stagnation_type = AnjiNoStagnation
+        elif self.stagnation_type is not AnjiNoStagnation:
+            raise RuntimeError(
+                "algorithm_mode = anji currently supports DefaultStagnation "
+                "or AnjiNoStagnation as stagnation_type."
+            )
+
+        self.algorithm_mode = 'anji'
 
     def save(self, filename):
         with open(filename, 'w') as f:
@@ -226,14 +302,14 @@ class Config:
             f.write('[NEAT]\n')
             write_pretty_params(f, self, self.__params)
 
-            f.write(f'\n[{self.genome_type.__name__}]\n')
+            f.write(f'\n[{self._section_name_for_type(self.genome_type)}]\n')
             self.genome_type.write_config(f, self.genome_config)
 
-            f.write(f'\n[{self.species_set_type.__name__}]\n')
+            f.write(f'\n[{self._section_name_for_type(self.species_set_type)}]\n')
             self.species_set_type.write_config(f, self.species_set_config)
 
-            f.write(f'\n[{self.stagnation_type.__name__}]\n')
+            f.write(f'\n[{self._section_name_for_type(self.stagnation_type)}]\n')
             self.stagnation_type.write_config(f, self.stagnation_config)
 
-            f.write(f'\n[{self.reproduction_type.__name__}]\n')
+            f.write(f'\n[{self._section_name_for_type(self.reproduction_type)}]\n')
             self.reproduction_type.write_config(f, self.reproduction_config)
