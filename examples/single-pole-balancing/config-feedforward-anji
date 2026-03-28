@@ -3,8 +3,8 @@ fitness_criterion     = max
 fitness_threshold     = 60.0
 pop_size              = 100
 reset_on_extinction   = 0
-
-no_fitness_termination         = False
+no_fitness_termination = False
+algorithm_mode        = anji
 
 [DefaultGenome]
 num_inputs              = 4
@@ -17,7 +17,7 @@ compatibility_weight_coefficient      = 0.6
 conn_add_prob           = 0.2
 conn_delete_prob        = 0.2
 node_add_prob           = 0.2
-node_delete_prob        = 0.2
+node_delete_prob        = 0.0
 activation_default      = sigmoid
 activation_options      = sigmoid
 activation_mutate_rate  = 0.0
@@ -57,18 +57,28 @@ weight_init_type               = gaussian
 enabled_rate_to_true_add       = 0.0
 enabled_rate_to_false_add      = 0.0
 
+# ANJI compatibility knobs
+anji_topology_mutation_classic = false
+anji_mutate_nodes              = false
+anji_prune                     = true
+anji_remove_connection_rate    = 0.2
+
 [DefaultSpeciesSet]
 compatibility_threshold = 3.0
 
 [DefaultStagnation]
 species_fitness_func = max
-max_stagnation  = 20
-
-species_elitism                = 2
+max_stagnation       = 20
+species_elitism      = 2
 
 [DefaultReproduction]
-elitism            = 2
-survival_threshold = 0.2
+elitism                      = 2
+survival_threshold           = 0.2
+min_species_size             = 2
 
-min_species_size               = 2
-
+# ANJI compatibility knobs
+anji_survival_rate           = 0.2
+anji_elitism                 = true
+anji_elitism_min_species_size = 6
+anji_clone_slice             = auto
+anji_crossover_slice         = auto

@@ -2,6 +2,7 @@
 Single-pole balancing experiment using a feed-forward neural network.
 """
 
+import argparse
 import multiprocessing
 import os
 import pickle
@@ -52,40 +53,63 @@ def eval_genomes(genomes, config):
         genome.fitness = eval_genome(genome, config)
 
 
-def run():
-    # Load the config file, which is assumed to live in
-    # the same directory as this script.
+def run(config_filename='config-feedforward'):
+    # Load the config file from script directory unless an absolute path is provided.
     local_dir = os.path.dirname(__file__)
-    config_path = os.path.join(local_dir, 'config-feedforward')
+    if os.path.isabs(config_filename):
+        config_path = config_filename
+    else:
+        config_path = os.path.join(local_dir, config_filename)
+
+    config_basename = os.path.basename(config_path)
+    run_dir = os.path.join(local_dir, f'exp-{config_basename}')
+    os.makedirs(run_dir, exist_ok=True)
+
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                          neat.DefaultSpeciesSet, neat.DefaultStagnation,
                          config_path)
 
-    pop = neat.Population(config)
-    stats = neat.StatisticsReporter()
-    pop.add_reporter(stats)
-    pop.add_reporter(neat.StdOutReporter(True))
+    previous_cwd = os.getcwd()
+    os.chdir(run_dir)
+    try:
+        pop = neat.Population(config)
+        stats = neat.StatisticsReporter()
+        pop.add_reporter(stats)
+        pop.add_reporter(neat.StdOutReporter(True))
 
-    pe = neat.ParallelEvaluator(multiprocessing.cpu_count(), eval_genome)
-    winner = pop.run(pe.evaluate)
+        pe = neat.ParallelEvaluator(multiprocessing.cpu_count(), eval_genome)
+        winner = pop.run(pe.evaluate)
 
-    # Save the winner.
-    with open('winner-feedforward', 'wb') as f:
-        pickle.dump(winner, f)
+        # Save the winner.
+        with open('winner-feedforward', 'wb') as f:
+            pickle.dump(winner, f)
 
-    print(winner)
+        print(f"Run directory: {run_dir}")
+        print(winner)
 
-    visualize.plot_stats(stats, ylog=True, view=True, filename="feedforward-fitness.svg")
-    visualize.plot_species(stats, view=True, filename="feedforward-speciation.svg")
+        visualize.plot_stats(stats, ylog=True, view=True, filename="feedforward-fitness.svg")
+        visualize.plot_species(stats, view=True, filename="feedforward-speciation.svg")
 
-    node_names = {-1: 'x', -2: 'dx', -3: 'theta', -4: 'dtheta', 0: 'control'}
-    visualize.draw_net(config, winner, True, node_names=node_names)
+        node_names = {-1: 'x', -2: 'dx', -3: 'theta', -4: 'dtheta', 0: 'control'}
+        visualize.draw_net(config, winner, True, node_names=node_names)
 
-    visualize.draw_net(config, winner, view=True, node_names=node_names,
-                       filename="winner-feedforward.gv")
-    visualize.draw_net(config, winner, view=True, node_names=node_names,
-                       filename="winner-feedforward-enabled-pruned.gv", prune_unused=True)
+        visualize.draw_net(config, winner, view=True, node_names=node_names,
+                           filename="winner-feedforward.gv")
+        visualize.draw_net(config, winner, view=True, node_names=node_names,
+                           filename="winner-feedforward-enabled-pruned.gv", prune_unused=True)
+    finally:
+        os.chdir(previous_cwd)
 
 
 if __name__ == '__main__':
-    run()
+    parser = argparse.ArgumentParser(
+        description='Run single-pole balancing (feed-forward) with a chosen config file.'
+    )
+    parser.add_argument(
+        'config_filename',
+        nargs='?',
+        default='config-feedforward',
+        help='Config file name (relative to this script) or absolute path.',
+    )
+    args = parser.parse_args()
+    run(args.config_filename)
