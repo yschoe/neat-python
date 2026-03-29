@@ -18,13 +18,21 @@ def run(config_filename='config-feedforward'):
         config_path = os.path.join(local_dir, config_filename)
 
     config_basename = os.path.basename(config_path)
-    run_dir = os.path.join(local_dir, f'exp-{config_basename}')
-    winner_path = os.path.join(run_dir, 'winner-feedforward')
+    exp_run_dir = os.path.join(local_dir, f'exp-{config_basename}')
+    cwd_winner = os.path.join(os.getcwd(), 'winner-feedforward')
+    exp_winner = os.path.join(exp_run_dir, 'winner-feedforward')
+    if os.path.isfile(cwd_winner):
+        run_dir = os.getcwd()
+        winner_path = cwd_winner
+    else:
+        run_dir = exp_run_dir
+        winner_path = exp_winner
     movie_path = os.path.join(run_dir, 'feedforward-movie.mp4')
 
     if not os.path.isfile(winner_path):
         raise FileNotFoundError(
             f"Winner file not found: {winner_path}\n"
+            f"Checked cwd and run directory: {run_dir}\n"
             f"Run evolve-feedforward.py first with config '{config_filename}'."
         )
 
@@ -32,6 +40,7 @@ def run(config_filename='config-feedforward'):
     with open(winner_path, 'rb') as f:
         c = pickle.load(f)
 
+    print(f"Run directory: {run_dir}")
     print('Loaded genome:')
     print(c)
 

@@ -15,6 +15,7 @@ or inherit from ParallelEvaluator if you need to do something more complicated.
 """
 
 import multiprocessing
+import argparse
 import os
 
 import neat
@@ -47,45 +48,67 @@ def eval_genome(genome, config):
 
 
 def run(config_file):
+    local_dir = os.path.dirname(__file__)
+    config_basename = os.path.basename(config_file)
+    run_dir = os.path.join(local_dir, f'exp-{config_basename}')
+    os.makedirs(run_dir, exist_ok=True)
+
     # Load configuration.
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                          neat.DefaultSpeciesSet, neat.DefaultStagnation,
                          config_file)
 
-    # Create the population, which is the top-level object for a NEAT run.
-    p = neat.Population(config)
+    previous_cwd = os.getcwd()
+    os.chdir(run_dir)
+    try:
+        # Create the population, which is the top-level object for a NEAT run.
+        p = neat.Population(config)
 
-    # Add a stdout reporter to show progress in the terminal.
-    p.add_reporter(neat.StdOutReporter(True))
-    stats = neat.StatisticsReporter()
-    p.add_reporter(stats)
+        # Add a stdout reporter to show progress in the terminal.
+        p.add_reporter(neat.StdOutReporter(True))
+        stats = neat.StatisticsReporter()
+        p.add_reporter(stats)
 
-    # Run for up to 300 generations.
-    # Use the context manager pattern to ensure proper cleanup of the multiprocessing pool.
-    with neat.ParallelEvaluator(multiprocessing.cpu_count(), eval_genome) as pe:
-        winner = p.run(pe.evaluate, 300)
+        # Run for up to 300 generations.
+        # Use the context manager pattern to ensure proper cleanup of the multiprocessing pool.
+        with neat.ParallelEvaluator(multiprocessing.cpu_count(), eval_genome) as pe:
+            winner = p.run(pe.evaluate, 300)
 
-        # Display the winning genome.
-        print(f'\nBest genome:\n{winner!s}')
+            # Display the winning genome.
+            print(f"Run directory: {run_dir}")
+            print(f'\nBest genome:\n{winner!s}')
 
-        # Show output of the most fit genome against training data.
-        print('\nOutput:')
-        winner_net = neat.nn.FeedForwardNetwork.create(winner, config)
-        for xi, xo in zip(xor_inputs, xor_outputs):
-            output = winner_net.activate(xi)
-            print(f"input {xi!r}, expected output {xo!r}, got {output!r}")
+            # Show output of the most fit genome against training data.
+            print('\nOutput:')
+            winner_net = neat.nn.FeedForwardNetwork.create(winner, config)
+            for xi, xo in zip(xor_inputs, xor_outputs):
+                output = winner_net.activate(xi)
+                print(f"input {xi!r}, expected output {xo!r}, got {output!r}")
 
-        node_names = {-1: 'A', -2: 'B', 0: 'A XOR B'}
-        visualize.draw_net(config, winner, True, node_names=node_names)
-        visualize.draw_net(config, winner, True, node_names=node_names, prune_unused=True)
-        visualize.plot_stats(stats, ylog=False, view=True)
-        visualize.plot_species(stats, view=True)
+            node_names = {-1: 'A', -2: 'B', 0: 'A XOR B'}
+            visualize.draw_net(config, winner, True, node_names=node_names)
+            visualize.draw_net(config, winner, True, node_names=node_names, prune_unused=True)
+            visualize.plot_stats(stats, ylog=False, view=True)
+            visualize.plot_species(stats, view=True)
+    finally:
+        os.chdir(previous_cwd)
 
 
 if __name__ == '__main__':
-    # Determine path to configuration file. This path manipulation is
-    # here so that the script will run successfully regardless of the
-    # current working directory.
+    parser = argparse.ArgumentParser(
+        description='Run XOR feed-forward parallel evolution with a chosen config file.'
+    )
+    parser.add_argument(
+        'config_filename',
+        nargs='?',
+        default='config-feedforward',
+        help='Config file name relative to this script, or an absolute path.',
+    )
+    args = parser.parse_args()
+
     local_dir = os.path.dirname(__file__)
-    config_path = os.path.join(local_dir, 'config-feedforward')
+    if os.path.isabs(args.config_filename):
+        config_path = args.config_filename
+    else:
+        config_path = os.path.join(local_dir, args.config_filename)
     run(config_path)

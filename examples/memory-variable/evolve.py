@@ -7,6 +7,7 @@ if you come up with a more interesting or impressive example, please submit a pu
 import multiprocessing
 import os
 import random
+import argparse
 
 import neat
 import visualize
@@ -65,55 +66,77 @@ def eval_genomes(genomes, config):
         genome.fitness = eval_genome(genome, config)
 
 
-def run():
+def run(config_filename='config'):
     # Determine path to configuration file.
     local_dir = os.path.dirname(__file__)
-    config_path = os.path.join(local_dir, 'config')
+    if os.path.isabs(config_filename):
+        config_path = config_filename
+    else:
+        config_path = os.path.join(local_dir, config_filename)
+    config_basename = os.path.basename(config_path)
+    run_dir = os.path.join(local_dir, f'exp-{config_basename}')
+    os.makedirs(run_dir, exist_ok=True)
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                          neat.DefaultSpeciesSet, neat.DefaultStagnation,
                          config_path)
 
-    pop = neat.Population(config)
-    stats = neat.StatisticsReporter()
-    pop.add_reporter(stats)
-    pop.add_reporter(neat.StdOutReporter(True))
+    previous_cwd = os.getcwd()
+    os.chdir(run_dir)
+    try:
+        pop = neat.Population(config)
+        stats = neat.StatisticsReporter()
+        pop.add_reporter(stats)
+        pop.add_reporter(neat.StdOutReporter(True))
 
-    pe = neat.ParallelEvaluator(multiprocessing.cpu_count(), eval_genome)
-    winner = pop.run(pe.evaluate, 1000)
+        pe = neat.ParallelEvaluator(multiprocessing.cpu_count(), eval_genome)
+        winner = pop.run(pe.evaluate, 1000)
 
-    # Log statistics.
-    stats.save()
+        # Log statistics.
+        stats.save()
 
-    # Show output of the most fit genome against a random input.
-    print(f'\nBest genome:\n{winner!s}')
-    print('\nOutput:')
-    winner_net = neat.nn.RecurrentNetwork.create(winner, config)
-    num_correct = 0
-    for n in range(num_tests):
-        print(f'\nRun {n} output:')
+        # Show output of the most fit genome against a random input.
+        print(f"Run directory: {run_dir}")
+        print(f'\nBest genome:\n{winner!s}')
+        print('\nOutput:')
+        winner_net = neat.nn.RecurrentNetwork.create(winner, config)
+        num_correct = 0
+        for n in range(num_tests):
+            print(f'\nRun {n} output:')
 
-        num_inputs = random.randint(1, max_inputs)
-        num_ignore = random.randint(0, max_ignore)
+            num_inputs = random.randint(1, max_inputs)
+            num_ignore = random.randint(0, max_ignore)
 
-        seq = [random.choice((0.0, 1.0)) for _ in range(num_inputs)]
-        winner_net.reset()
-        outputs = test_network(winner_net, seq, num_ignore)
+            seq = [random.choice((0.0, 1.0)) for _ in range(num_inputs)]
+            winner_net.reset()
+            outputs = test_network(winner_net, seq, num_ignore)
 
-        correct = True
-        for i, o in zip(seq, outputs):
-            print(f"\texpected {i:1.5f} got {o[0]:1.5f}")
-            correct = correct and round(o[0]) == i
-        print("OK" if correct else "FAIL")
-        num_correct += 1 if correct else 0
+            correct = True
+            for i, o in zip(seq, outputs):
+                print(f"\texpected {i:1.5f} got {o[0]:1.5f}")
+                correct = correct and round(o[0]) == i
+            print("OK" if correct else "FAIL")
+            num_correct += 1 if correct else 0
 
-    print(f"{num_correct} of {num_tests} correct {100.0 * num_correct / num_tests:.2f}%")
+        print(f"{num_correct} of {num_tests} correct {100.0 * num_correct / num_tests:.2f}%")
 
-    node_names = {-1: 'input', -2: 'record', -3: 'play', 0: 'output'}
-    visualize.draw_net(config, winner, True, node_names=node_names)
-    visualize.draw_net(config, winner, True, node_names=node_names, prune_unused=True)
-    visualize.plot_stats(stats, ylog=False, view=True)
-    visualize.plot_species(stats, view=True)
+        node_names = {-1: 'input', -2: 'record', -3: 'play', 0: 'output'}
+        visualize.draw_net(config, winner, True, node_names=node_names)
+        visualize.draw_net(config, winner, True, node_names=node_names, prune_unused=True)
+        visualize.plot_stats(stats, ylog=False, view=True)
+        visualize.plot_species(stats, view=True)
+    finally:
+        os.chdir(previous_cwd)
 
 
 if __name__ == '__main__':
-    run()
+    parser = argparse.ArgumentParser(
+        description='Run memory-variable example with a chosen config file.'
+    )
+    parser.add_argument(
+        'config_filename',
+        nargs='?',
+        default='config',
+        help='Config file name relative to this script, or an absolute path.',
+    )
+    args = parser.parse_args()
+    run(args.config_filename)

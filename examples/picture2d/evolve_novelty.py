@@ -1,5 +1,6 @@
 import os
 import random
+import argparse
 from multiprocessing import Pool
 
 import numpy as np
@@ -76,57 +77,79 @@ class NoveltyEvaluator:
         print(f'{len(self.archive)} archive entries')
 
 
-def run():
+def run(config_filename='novelty_config'):
     # Determine path to configuration file.
     local_dir = os.path.dirname(__file__)
-    config_path = os.path.join(local_dir, 'novelty_config')
+    if os.path.isabs(config_filename):
+        config_path = config_filename
+    else:
+        config_path = os.path.join(local_dir, config_filename)
+    config_basename = os.path.basename(config_path)
+    run_dir = os.path.join(local_dir, f'exp-{config_basename}')
+    os.makedirs(run_dir, exist_ok=True)
     # Note that we provide the custom stagnation class to the Config constructor.
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                          neat.DefaultSpeciesSet, neat.DefaultStagnation,
                          config_path)
 
-    ne = NoveltyEvaluator(4, 'color')
-    if ne.scheme == 'color':
-        config.output_nodes = 3
-    else:
-        config.output_nodes = 1
-
-    pop = neat.Population(config)
-
-    # Add a stdout reporter to show progress in the terminal.
-    pop.add_reporter(neat.StdOutReporter(True))
-    stats = neat.StatisticsReporter()
-    pop.add_reporter(stats)
-
-    while 1:
-        pop.run(ne.evaluate, 1)
-
-        winner = stats.best_genome()
-        if ne.scheme == 'gray':
-            image = eval_gray_image(winner, config, full_scale * width, full_scale * height)
-        elif ne.scheme == 'color':
-            image = eval_color_image(winner, config, full_scale * width, full_scale * height)
-        elif ne.scheme == 'mono':
-            image = eval_mono_image(winner, config, full_scale * width, full_scale * height)
+    previous_cwd = os.getcwd()
+    os.chdir(run_dir)
+    try:
+        ne = NoveltyEvaluator(4, 'color')
+        if ne.scheme == 'color':
+            config.output_nodes = 3
         else:
-            raise Exception(f'Unexpected scheme: {ne.scheme!r}')
+            config.output_nodes = 1
 
-        im = np.clip(np.array(image), 0, 255).astype(np.uint8)
-        im = ne.image_from_array(im)
-        im.save(f'winning-novelty-{pop.generation:06d}.png')
+        pop = neat.Population(config)
 
-        if ne.scheme == 'gray':
-            image = eval_gray_image(winner, config, width, height)
-        elif ne.scheme == 'color':
-            image = eval_color_image(winner, config, width, height)
-        elif ne.scheme == 'mono':
-            image = eval_mono_image(winner, config, width, height)
-        else:
-            raise Exception(f'Unexpected scheme: {ne.scheme!r}')
+        # Add a stdout reporter to show progress in the terminal.
+        pop.add_reporter(neat.StdOutReporter(True))
+        stats = neat.StatisticsReporter()
+        pop.add_reporter(stats)
 
-        float_image = np.array(image, dtype=np.float32) / 255.0
-        ne.archive.append(float_image)
+        print(f"Run directory: {run_dir}")
+        while 1:
+            pop.run(ne.evaluate, 1)
+
+            winner = stats.best_genome()
+            if ne.scheme == 'gray':
+                image = eval_gray_image(winner, config, full_scale * width, full_scale * height)
+            elif ne.scheme == 'color':
+                image = eval_color_image(winner, config, full_scale * width, full_scale * height)
+            elif ne.scheme == 'mono':
+                image = eval_mono_image(winner, config, full_scale * width, full_scale * height)
+            else:
+                raise Exception(f'Unexpected scheme: {ne.scheme!r}')
+
+            im = np.clip(np.array(image), 0, 255).astype(np.uint8)
+            im = ne.image_from_array(im)
+            im.save(f'winning-novelty-{pop.generation:06d}.png')
+
+            if ne.scheme == 'gray':
+                image = eval_gray_image(winner, config, width, height)
+            elif ne.scheme == 'color':
+                image = eval_color_image(winner, config, width, height)
+            elif ne.scheme == 'mono':
+                image = eval_mono_image(winner, config, width, height)
+            else:
+                raise Exception(f'Unexpected scheme: {ne.scheme!r}')
+
+            float_image = np.array(image, dtype=np.float32) / 255.0
+            ne.archive.append(float_image)
+    finally:
+        os.chdir(previous_cwd)
 
 
 if __name__ == '__main__':
-    run()
+    parser = argparse.ArgumentParser(
+        description='Run novelty picture2d evolution with a chosen config file.'
+    )
+    parser.add_argument(
+        'config_filename',
+        nargs='?',
+        default='novelty_config',
+        help='Config file name relative to this script, or an absolute path.',
+    )
+    args = parser.parse_args()
+    run(args.config_filename)

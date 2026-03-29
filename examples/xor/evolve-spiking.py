@@ -1,5 +1,6 @@
 """ 2-input XOR example using Izhikevich's spiking neuron model. """
 
+import argparse
 import multiprocessing
 import os
 
@@ -89,6 +90,11 @@ def eval_genomes(genomes, config):
 
 
 def run(config_path):
+    local_dir = os.path.dirname(__file__)
+    config_basename = os.path.basename(config_path)
+    run_dir = os.path.join(local_dir, f'exp-{config_basename}')
+    os.makedirs(run_dir, exist_ok=True)
+
     # Load the config file, which is assumed to live in
     # the same directory as this script.
     config = neat.Config(neat.iznn.IZGenome, neat.DefaultReproduction,
@@ -101,58 +107,79 @@ def run(config_path):
     # and this choice may not be the best for tackling a real problem.
     config.output_nodes = 2
 
-    pop = neat.population.Population(config)
+    previous_cwd = os.getcwd()
+    os.chdir(run_dir)
+    try:
+        pop = neat.population.Population(config)
 
-    # Add a stdout reporter to show progress in the terminal.
-    pop.add_reporter(neat.StdOutReporter(True))
-    stats = neat.StatisticsReporter()
-    pop.add_reporter(stats)
+        # Add a stdout reporter to show progress in the terminal.
+        pop.add_reporter(neat.StdOutReporter(True))
+        stats = neat.StatisticsReporter()
+        pop.add_reporter(stats)
 
-    pe = neat.ParallelEvaluator(multiprocessing.cpu_count(), eval_genome)
-    winner = pop.run(pe.evaluate, 3000)
+        pe = neat.ParallelEvaluator(multiprocessing.cpu_count(), eval_genome)
+        winner = pop.run(pe.evaluate, 3000)
 
-    # Display the winning genome.
-    print(f'\nBest genome:\n{winner!s}')
+        # Display the winning genome.
+        print(f"Run directory: {run_dir}")
+        print(f'\nBest genome:\n{winner!s}')
 
-    node_names = {-1: 'A', -2: 'B'}
-    visualize.draw_net(config, winner, True, node_names=node_names)
-    visualize.draw_net(config, winner, True, node_names=node_names, prune_unused=True)
-    visualize.plot_stats(stats, ylog=False, view=True)
-    visualize.plot_species(stats, view=True)
+        node_names = {-1: 'A', -2: 'B'}
+        visualize.draw_net(config, winner, True, node_names=node_names)
+        visualize.draw_net(config, winner, True, node_names=node_names, prune_unused=True)
+        visualize.plot_stats(stats, ylog=False, view=True)
+        visualize.plot_species(stats, view=True)
 
-    # Show output of the most fit genome against training data, and create
-    # a plot of the traces out to the max time for each set of inputs.
-    print('\nBest network output:')
-    plt.figure(figsize=(12, 12))
-    sum_square_error, simulated = simulate(winner, config)
-    for r, (inputData, outputData, t0, t1, v0, v1, neuron_data) in enumerate(simulated):
-        response = compute_output(t0, t1)
-        print(f"{inputData!r} expected {outputData:.3f} got {response:.3f}")
+        # Show output of the most fit genome against training data, and create
+        # a plot of the traces out to the max time for each set of inputs.
+        print('\nBest network output:')
+        plt.figure(figsize=(12, 12))
+        sum_square_error, simulated = simulate(winner, config)
+        for r, (inputData, outputData, t0, t1, v0, v1, neuron_data) in enumerate(simulated):
+            response = compute_output(t0, t1)
+            print(f"{inputData!r} expected {outputData:.3f} got {response:.3f}")
 
-        axes = plt.subplot(4, 1, r + 1)
-        plt.title("Traces for XOR input {{{0:.1f}, {1:.1f}}}".format(*inputData), fontsize=12)
-        for i, s in neuron_data.items():
-            if i in [0, 1]:
-                t, I, v, u, fired = zip(*s)
-                plt.plot(t, v, "-", label=f"neuron {i:d}")
+            axes = plt.subplot(4, 1, r + 1)
+            plt.title("Traces for XOR input {{{0:.1f}, {1:.1f}}}".format(*inputData), fontsize=12)
+            for i, s in neuron_data.items():
+                if i in [0, 1]:
+                    t, I, v, u, fired = zip(*s)
+                    plt.plot(t, v, "-", label=f"neuron {i:d}")
 
-        # Circle the first peak of each output.
-        circle0 = patches.Ellipse((t0, v0), 1.0, 10.0, color='r', fill=False)
-        circle1 = patches.Ellipse((t1, v1), 1.0, 10.0, color='r', fill=False)
-        axes.add_artist(circle0)
-        axes.add_artist(circle1)
+            # Circle the first peak of each output.
+            circle0 = patches.Ellipse((t0, v0), 1.0, 10.0, color='r', fill=False)
+            circle1 = patches.Ellipse((t1, v1), 1.0, 10.0, color='r', fill=False)
+            axes.add_artist(circle0)
+            axes.add_artist(circle1)
 
-        plt.ylabel("Potential (mv)", fontsize=10)
-        plt.ylim(-100, 50)
-        plt.tick_params(labelsize=8)
-        plt.grid()
+            plt.ylabel("Potential (mv)", fontsize=10)
+            plt.ylim(-100, 50)
+            plt.tick_params(labelsize=8)
+            plt.grid()
 
-    plt.xlabel("Time (in ms)", fontsize=10)
-    plt.tight_layout(pad=0.4, w_pad=0.5, h_pad=1.0)
-    plt.savefig("traces.png", dpi=90)
-    plt.show()
+        plt.xlabel("Time (in ms)", fontsize=10)
+        plt.tight_layout(pad=0.4, w_pad=0.5, h_pad=1.0)
+        plt.savefig("traces.png", dpi=90)
+        plt.show()
+    finally:
+        os.chdir(previous_cwd)
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description='Run XOR spiking evolution with a chosen config file.'
+    )
+    parser.add_argument(
+        'config_filename',
+        nargs='?',
+        default='config-spiking',
+        help='Config file name relative to this script, or an absolute path.',
+    )
+    args = parser.parse_args()
+
     local_dir = os.path.dirname(__file__)
-    run(os.path.join(local_dir, 'config-spiking'))
+    if os.path.isabs(args.config_filename):
+        config_path = args.config_filename
+    else:
+        config_path = os.path.join(local_dir, args.config_filename)
+    run(config_path)

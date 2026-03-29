@@ -10,6 +10,7 @@ This example also demonstrates how to customize species stagnation.
 import math
 import os
 import pickle
+import argparse
 from multiprocessing import Pool
 
 import pygame
@@ -204,34 +205,55 @@ class PictureBreeder:
                 genome.fitness = 0.0
 
 
-def run():
+def run(config_filename=None):
     # 128x128 thumbnails, 1500x1500 rendered images, 1100x810 viewer, grayscale images, 4 worker processes.
     pb = PictureBreeder(128, 128, 1500, 1500, 1100, 810, 'color', 4)
 
     # Determine path to configuration file.
     local_dir = os.path.dirname(__file__)
-    if pb.scheme == 'color':
-        config_path = os.path.join(local_dir, 'interactive_config_color')
+    default_config = 'interactive_config_color' if pb.scheme == 'color' else 'interactive_config_gray'
+    chosen_config = config_filename or default_config
+    if os.path.isabs(chosen_config):
+        config_path = chosen_config
     else:
-        config_path = os.path.join(local_dir, 'interactive_config_gray')
+        config_path = os.path.join(local_dir, chosen_config)
+    config_basename = os.path.basename(config_path)
+    run_dir = os.path.join(local_dir, f'exp-{config_basename}')
+    os.makedirs(run_dir, exist_ok=True)
 
     # Note that we provide the custom stagnation class to the Config constructor.
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                          neat.DefaultSpeciesSet, InteractiveStagnation,
                          config_path)
 
-    config.pop_size = pb.num_cols * pb.num_rows
-    pop = neat.Population(config)
+    previous_cwd = os.getcwd()
+    os.chdir(run_dir)
+    try:
+        config.pop_size = pb.num_cols * pb.num_rows
+        pop = neat.Population(config)
 
-    # Add a stdout reporter to show progress in the terminal.
-    pop.add_reporter(neat.StdOutReporter(True))
-    stats = neat.StatisticsReporter()
-    pop.add_reporter(stats)
+        # Add a stdout reporter to show progress in the terminal.
+        pop.add_reporter(neat.StdOutReporter(True))
+        stats = neat.StatisticsReporter()
+        pop.add_reporter(stats)
 
-    while 1:
-        pb.generation = pop.generation + 1
-        pop.run(pb.eval_fitness, 1)
+        print(f"Run directory: {run_dir}")
+        while 1:
+            pb.generation = pop.generation + 1
+            pop.run(pb.eval_fitness, 1)
+    finally:
+        os.chdir(previous_cwd)
 
 
 if __name__ == '__main__':
-    run()
+    parser = argparse.ArgumentParser(
+        description='Run interactive picture2d evolution with a chosen config file.'
+    )
+    parser.add_argument(
+        'config_filename',
+        nargs='?',
+        default=None,
+        help='Config file name relative to this script, or an absolute path.',
+    )
+    args = parser.parse_args()
+    run(args.config_filename)

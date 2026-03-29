@@ -9,6 +9,7 @@ produces the same kinds of visual artifacts:
 * Network diagrams (full and pruned) of the winning genome
 """
 
+import argparse
 import multiprocessing
 import os
 import pickle
@@ -57,6 +58,11 @@ def eval_genomes(genomes, config):
 
 
 def run(config_file):
+    local_dir = os.path.dirname(__file__)
+    config_basename = os.path.basename(config_file)
+    run_dir = os.path.join(local_dir, f"exp-{config_basename}")
+    os.makedirs(run_dir, exist_ok=True)
+
     # Load configuration.
     config = neat.Config(
         neat.DefaultGenome,
@@ -66,85 +72,103 @@ def run(config_file):
         config_file,
     )
 
-    # Create the population, which is the top-level object for a NEAT run.
-    p = neat.Population(config)
+    previous_cwd = os.getcwd()
+    os.chdir(run_dir)
+    try:
+        # Create the population, which is the top-level object for a NEAT run.
+        p = neat.Population(config)
 
-    # Add a stdout reporter to show progress in the terminal.
-    p.add_reporter(neat.StdOutReporter(True))
-    stats = neat.StatisticsReporter()
-    p.add_reporter(stats)
-    # Periodic checkpoints, similar to other examples.
-    p.add_reporter(neat.Checkpointer(10))
+        # Add a stdout reporter to show progress in the terminal.
+        p.add_reporter(neat.StdOutReporter(True))
+        stats = neat.StatisticsReporter()
+        p.add_reporter(stats)
+        # Periodic checkpoints, similar to other examples.
+        p.add_reporter(neat.Checkpointer(10))
 
-    # Use parallel evaluation across available CPU cores.
-    pe = neat.ParallelEvaluator(multiprocessing.cpu_count(), eval_genome)
+        # Use parallel evaluation across available CPU cores.
+        pe = neat.ParallelEvaluator(multiprocessing.cpu_count(), eval_genome)
 
-    # Run until solution or fitness threshold is reached (see config).
-    winner = p.run(pe.evaluate, 500)
+        # Run until solution or fitness threshold is reached (see config).
+        winner = p.run(pe.evaluate, 500)
 
-    # Display the winning genome.
-    print(f"\nBest genome:\n{winner!s}")
+        # Display the winning genome.
+        print(f"\nRun directory: {run_dir}")
+        print(f"\nBest genome:\n{winner!s}")
 
-    # Save the winner for later reuse in test-feedforward.py.
-    with open("winner-feedforward.pickle", "wb") as f:
-        pickle.dump(winner, f)
+        # Save the winner for later reuse in test-feedforward.py.
+        with open("winner-feedforward.pickle", "wb") as f:
+            pickle.dump(winner, f)
 
-    # Visualization artifacts analogous to examples/xor/evolve-feedforward.py.
-    # Fitness & species plots.
-    visualize.plot_stats(
-        stats,
-        ylog=False,
-        view=True,
-        filename="feedforward-fitness.svg",
-    )
-    visualize.plot_species(
-        stats,
-        view=True,
-        filename="feedforward-speciation.svg",
-    )
+        # Visualization artifacts analogous to examples/xor/evolve-feedforward.py.
+        # Fitness & species plots.
+        visualize.plot_stats(
+            stats,
+            ylog=False,
+            view=True,
+            filename="feedforward-fitness.svg",
+        )
+        visualize.plot_species(
+            stats,
+            view=True,
+            filename="feedforward-speciation.svg",
+        )
 
-    # Node labels for easier interpretation of the evolved controller.
-    node_names = {
-        # Observations
-        -1: "x",
-        -2: "y",
-        -3: "x_dot",
-        -4: "y_dot",
-        -5: "angle",
-        -6: "ang_vel",
-        -7: "left_leg",
-        -8: "right_leg",
-        # Discrete actions
-        0: "do_nothing",
-        1: "fire_left",
-        2: "fire_main",
-        3: "fire_right",
-    }
+        # Node labels for easier interpretation of the evolved controller.
+        node_names = {
+            # Observations
+            -1: "x",
+            -2: "y",
+            -3: "x_dot",
+            -4: "y_dot",
+            -5: "angle",
+            -6: "ang_vel",
+            -7: "left_leg",
+            -8: "right_leg",
+            # Discrete actions
+            0: "do_nothing",
+            1: "fire_left",
+            2: "fire_main",
+            3: "fire_right",
+        }
 
-    # Full and pruned network diagrams for the winning genome.
-    visualize.draw_net(
-        config,
-        winner,
-        view=True,
-        node_names=node_names,
-        filename="winner-feedforward.gv",
-    )
-    visualize.draw_net(
-        config,
-        winner,
-        view=True,
-        node_names=node_names,
-        filename="winner-feedforward-pruned.gv",
-        prune_unused=True,
-    )
+        # Full and pruned network diagrams for the winning genome.
+        visualize.draw_net(
+            config,
+            winner,
+            view=True,
+            node_names=node_names,
+            filename="winner-feedforward.gv",
+        )
+        visualize.draw_net(
+            config,
+            winner,
+            view=True,
+            node_names=node_names,
+            filename="winner-feedforward-pruned.gv",
+            prune_unused=True,
+        )
+    finally:
+        os.chdir(previous_cwd)
 
     return winner, stats
 
 
 if __name__ == "__main__":
-    # Determine path to configuration file. This path manipulation is
-    # here so that the script will run successfully regardless of the
-    # current working directory.
+    parser = argparse.ArgumentParser(
+        description="Run LunarLander feed-forward evolution with a chosen config file."
+    )
+    parser.add_argument(
+        "config_filename",
+        nargs="?",
+        default="config-feedforward",
+        help="Config file name relative to this script, or an absolute path.",
+    )
+    args = parser.parse_args()
+
+    # Determine path to configuration file.
     local_dir = os.path.dirname(__file__)
-    config_path = os.path.join(local_dir, "config-feedforward")
+    if os.path.isabs(args.config_filename):
+        config_path = args.config_filename
+    else:
+        config_path = os.path.join(local_dir, args.config_filename)
     run(config_path)

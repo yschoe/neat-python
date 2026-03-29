@@ -60,6 +60,12 @@ weight_init_type               = gaussian
 enabled_rate_to_true_add       = 0.0
 enabled_rate_to_false_add      = 0.0
 
+# ANJI compatibility knobs
+anji_topology_mutation_classic = false
+anji_mutate_nodes              = false
+anji_prune                     = true
+anji_remove_connection_rate    = 0.2
+
 [DefaultSpeciesSet]
 compatibility_threshold = 3.0
 
@@ -72,3 +78,10 @@ species_elitism      = 2
 elitism            = 3
 survival_threshold = 0.2
 min_species_size   = 2
+
+# ANJI compatibility knobs
+anji_survival_rate            = 0.2
+anji_elitism                  = true
+anji_elitism_min_species_size = 6
+anji_clone_slice              = auto
+anji_crossover_slice          = auto

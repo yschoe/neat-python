@@ -13,6 +13,7 @@ Key features:
 
 import os
 import random
+import argparse
 import neat
 
 # 2-input XOR inputs and expected outputs
@@ -188,50 +189,73 @@ def demonstrate_backward_compatibility(config_path):
 
 def main():
     """Run all reproducibility tests."""
+    parser = argparse.ArgumentParser(
+        description='Run XOR reproducibility example with a chosen config file.'
+    )
+    parser.add_argument(
+        'config_filename',
+        nargs='?',
+        default='config-feedforward',
+        help='Config file name relative to this script, or an absolute path.',
+    )
+    args = parser.parse_args()
+
     # Determine path to configuration file
     local_dir = os.path.dirname(__file__)
-    config_path = os.path.join(local_dir, 'config-feedforward')
-    
-    print("\n" + "#" * 70)
-    print("#" + " " * 68 + "#")
-    print("#  NEAT-Python Reproducibility Verification" + " " * 25 + "#")
-    print("#  XOR Example with Seed-based Deterministic Evolution" + " " * 14 + "#")
-    print("#" + " " * 68 + "#")
-    print("#" * 70)
-    
-    print("\nThis script demonstrates reproducibility in NEAT-Python by running")
-    print("the same evolution multiple times with different seeds and comparing")
-    print("the results.")
-    
-    print("\nThree tests will be performed:")
-    print("  1. Same seed → identical results (reproducibility)")
-    print("  2. Different seeds → different results (variation)")
-    print("  3. No seed → works like before (backward compatibility)")
-    
-    # Run tests
-    test1_pass = test_reproducibility(config_path)
-    test2_pass = test_different_seeds(config_path)
-    test3_pass = demonstrate_backward_compatibility(config_path)
-    
-    # Summary
-    print_separator("SUMMARY")
-    
-    if test1_pass and test2_pass and test3_pass:
-        print("✅ ALL TESTS PASSED!")
-        print("\nReproducibility is working correctly:")
-        print("  • Same seed produces identical evolution")
-        print("  • Different seeds produce different evolution")
-        print("  • Backward compatibility maintained")
+    if os.path.isabs(args.config_filename):
+        config_path = args.config_filename
     else:
-        print("⚠️  SOME TESTS DID NOT PASS")
-        if not test1_pass:
-            print("  • Reproducibility test failed")
-        if not test2_pass:
-            print("  • Different seeds test inconclusive")
-        if not test3_pass:
-            print("  • Backward compatibility test failed")
-    
-    print("\n" + "#" * 70 + "\n")
+        config_path = os.path.join(local_dir, args.config_filename)
+    config_basename = os.path.basename(config_path)
+    run_dir = os.path.join(local_dir, f'exp-{config_basename}')
+    os.makedirs(run_dir, exist_ok=True)
+
+    previous_cwd = os.getcwd()
+    os.chdir(run_dir)
+    try:
+        print(f"Run directory: {run_dir}")
+        print("\n" + "#" * 70)
+        print("#" + " " * 68 + "#")
+        print("#  NEAT-Python Reproducibility Verification" + " " * 25 + "#")
+        print("#  XOR Example with Seed-based Deterministic Evolution" + " " * 14 + "#")
+        print("#" + " " * 68 + "#")
+        print("#" * 70)
+        
+        print("\nThis script demonstrates reproducibility in NEAT-Python by running")
+        print("the same evolution multiple times with different seeds and comparing")
+        print("the results.")
+        
+        print("\nThree tests will be performed:")
+        print("  1. Same seed → identical results (reproducibility)")
+        print("  2. Different seeds → different results (variation)")
+        print("  3. No seed → works like before (backward compatibility)")
+        
+        # Run tests
+        test1_pass = test_reproducibility(config_path)
+        test2_pass = test_different_seeds(config_path)
+        test3_pass = demonstrate_backward_compatibility(config_path)
+        
+        # Summary
+        print_separator("SUMMARY")
+        
+        if test1_pass and test2_pass and test3_pass:
+            print("✅ ALL TESTS PASSED!")
+            print("\nReproducibility is working correctly:")
+            print("  • Same seed produces identical evolution")
+            print("  • Different seeds produce different evolution")
+            print("  • Backward compatibility maintained")
+        else:
+            print("⚠️  SOME TESTS DID NOT PASS")
+            if not test1_pass:
+                print("  • Reproducibility test failed")
+            if not test2_pass:
+                print("  • Different seeds test inconclusive")
+            if not test3_pass:
+                print("  • Backward compatibility test failed")
+        
+        print("\n" + "#" * 70 + "\n")
+    finally:
+        os.chdir(previous_cwd)
 
 
 if __name__ == '__main__':

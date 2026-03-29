@@ -9,6 +9,7 @@ produces the same kinds of visual artifacts:
 * Network diagrams (full and pruned) of the winning genome
 """
 
+import argparse
 import multiprocessing
 import os
 import pickle
@@ -58,6 +59,11 @@ def eval_genomes(genomes, config):
 
 
 def run(config_file):
+    local_dir = os.path.dirname(__file__)
+    config_basename = os.path.basename(config_file)
+    run_dir = os.path.join(local_dir, f"exp-{config_basename}")
+    os.makedirs(run_dir, exist_ok=True)
+
     # Load configuration.
     config = neat.Config(
         neat.DefaultGenome,
@@ -67,88 +73,106 @@ def run(config_file):
         config_file,
     )
 
-    # Create the population, which is the top-level object for a NEAT run.
-    p = neat.Population(config)
+    previous_cwd = os.getcwd()
+    os.chdir(run_dir)
+    try:
+        # Create the population, which is the top-level object for a NEAT run.
+        p = neat.Population(config)
 
-    # Add a stdout reporter to show progress in the terminal.
-    p.add_reporter(neat.StdOutReporter(True))
-    stats = neat.StatisticsReporter()
-    p.add_reporter(stats)
-    # Periodic checkpoints, similar to other examples.
-    p.add_reporter(neat.Checkpointer(10))
+        # Add a stdout reporter to show progress in the terminal.
+        p.add_reporter(neat.StdOutReporter(True))
+        stats = neat.StatisticsReporter()
+        p.add_reporter(stats)
+        # Periodic checkpoints, similar to other examples.
+        p.add_reporter(neat.Checkpointer(10))
 
-    # Use parallel evaluation across available CPU cores.
-    pe = neat.ParallelEvaluator(multiprocessing.cpu_count(), eval_genome)
+        # Use parallel evaluation across available CPU cores.
+        pe = neat.ParallelEvaluator(multiprocessing.cpu_count(), eval_genome)
 
-    # Run until solution or fitness threshold is reached (see config).
-    winner = p.run(pe.evaluate, 300)
+        # Run until solution or fitness threshold is reached (see config).
+        winner = p.run(pe.evaluate, 300)
 
-    # Display the winning genome.
-    print(f"\nBest genome:\n{winner!s}")
+        # Display the winning genome.
+        print(f"\nRun directory: {run_dir}")
+        print(f"\nBest genome:\n{winner!s}")
 
-    # Save the winner for later reuse in test-feedforward.py.
-    with open("winner-feedforward.pickle", "wb") as f:
-        pickle.dump(winner, f)
+        # Save the winner for later reuse in test-feedforward.py.
+        with open("winner-feedforward.pickle", "wb") as f:
+            pickle.dump(winner, f)
 
-    # Visualization artifacts analogous to examples/xor/evolve-feedforward.py.
-    # Fitness & species plots.
-    visualize.plot_stats(
-        stats,
-        ylog=False,
-        view=True,
-        filename="feedforward-fitness.svg",
-    )
-    visualize.plot_species(
-        stats,
-        view=True,
-        filename="feedforward-speciation.svg",
-    )
+        # Visualization artifacts analogous to examples/xor/evolve-feedforward.py.
+        # Fitness & species plots.
+        visualize.plot_stats(
+            stats,
+            ylog=False,
+            view=True,
+            filename="feedforward-fitness.svg",
+        )
+        visualize.plot_species(
+            stats,
+            view=True,
+            filename="feedforward-speciation.svg",
+        )
 
-    # Node labels for easier interpretation of the evolved controller.
-    # BipedalWalker-v3 observations are a 24-dimensional vector that includes
-    # hull angle/velocity, joint angles/velocities, leg contact, and LIDAR
-    # measurements. For brevity, we group them into coarse labels here.
-    node_names = {
-        # Example grouping of observation components (indices are illustrative):
-        -1: "hull_angle",
-        -2: "hull_ang_vel",
-        -3: "vel_x",
-        -4: "vel_y",
-        -5: "hip_1",
-        -6: "knee_1",
-        -7: "hip_2",
-        -8: "knee_2",
-        # Remaining inputs (-9 .. -24) are left unnamed for clarity.
-        0: "motor_hip_1",
-        1: "motor_knee_1",
-        2: "motor_hip_2",
-        3: "motor_knee_2",
-    }
+        # Node labels for easier interpretation of the evolved controller.
+        # BipedalWalker-v3 observations are a 24-dimensional vector that includes
+        # hull angle/velocity, joint angles/velocities, leg contact, and LIDAR
+        # measurements. For brevity, we group them into coarse labels here.
+        node_names = {
+            # Example grouping of observation components (indices are illustrative):
+            -1: "hull_angle",
+            -2: "hull_ang_vel",
+            -3: "vel_x",
+            -4: "vel_y",
+            -5: "hip_1",
+            -6: "knee_1",
+            -7: "hip_2",
+            -8: "knee_2",
+            # Remaining inputs (-9 .. -24) are left unnamed for clarity.
+            0: "motor_hip_1",
+            1: "motor_knee_1",
+            2: "motor_hip_2",
+            3: "motor_knee_2",
+        }
 
-    # Full and pruned network diagrams for the winning genome.
-    visualize.draw_net(
-        config,
-        winner,
-        view=True,
-        node_names=node_names,
-        filename="winner-feedforward.gv",
-    )
-    visualize.draw_net(
-        config,
-        winner,
-        view=True,
-        node_names=node_names,
-        filename="winner-feedforward-pruned.gv",
-        prune_unused=True,
-    )
+        # Full and pruned network diagrams for the winning genome.
+        visualize.draw_net(
+            config,
+            winner,
+            view=True,
+            node_names=node_names,
+            filename="winner-feedforward.gv",
+        )
+        visualize.draw_net(
+            config,
+            winner,
+            view=True,
+            node_names=node_names,
+            filename="winner-feedforward-pruned.gv",
+            prune_unused=True,
+        )
+    finally:
+        os.chdir(previous_cwd)
 
     return winner, stats
 
 
 if __name__ == "__main__":
-    # Determine path to configuration file. This path manipulation is
-    # here so that the script will run successfully regardless of the
-    # current working directory.
+    parser = argparse.ArgumentParser(
+        description="Run BipedalWalker feed-forward evolution with a chosen config file."
+    )
+    parser.add_argument(
+        "config_filename",
+        nargs="?",
+        default="config-feedforward",
+        help="Config file name relative to this script, or an absolute path.",
+    )
+    args = parser.parse_args()
+
+    # Determine path to configuration file.
     local_dir = os.path.dirname(__file__)
-    config_path = os.path.join(local_dir, "config-feedforward")
+    if os.path.isabs(args.config_filename):
+        config_path = args.config_filename
+    else:
+        config_path = os.path.join(local_dir, args.config_filename)
     run(config_path)

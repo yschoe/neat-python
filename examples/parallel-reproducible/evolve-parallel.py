@@ -18,6 +18,7 @@ regardless of the number of worker processes used.
 import multiprocessing
 import os
 import random
+import argparse
 
 import neat
 
@@ -215,55 +216,78 @@ def test_worker_count_independence(config_path):
 
 def main():
     """Run parallel reproducibility tests."""
+    parser = argparse.ArgumentParser(
+        description='Run parallel reproducibility example with a chosen config file.'
+    )
+    parser.add_argument(
+        'config_filename',
+        nargs='?',
+        default='config-parallel',
+        help='Config file name relative to this script, or an absolute path.',
+    )
+    args = parser.parse_args()
+
     # Determine path to configuration file
     local_dir = os.path.dirname(__file__)
-    config_path = os.path.join(local_dir, 'config-parallel')
+    if os.path.isabs(args.config_filename):
+        config_path = args.config_filename
+    else:
+        config_path = os.path.join(local_dir, args.config_filename)
+    config_basename = os.path.basename(config_path)
+    run_dir = os.path.join(local_dir, f'exp-{config_basename}')
+    os.makedirs(run_dir, exist_ok=True)
     
     # Determine number of workers
     max_workers = multiprocessing.cpu_count()
     num_workers = min(4, max_workers)  # Use up to 4 workers
     
-    print("\n" + "#" * 70)
-    print("#" + " " * 68 + "#")
-    print("#  NEAT-Python Parallel Evaluation with Reproducibility" + " " * 13 + "#")
-    print("#" + " " * 68 + "#")
-    print("#" * 70)
-    
-    print(f"\nSystem: {max_workers} CPU cores available")
-    print(f"Using: {num_workers} worker processes for this test")
-    
-    print("\nThis script demonstrates reproducibility in parallel evaluation by")
-    print("running evolution multiple times and comparing results.")
-    
-    print("\nThree tests will be performed:")
-    print(f"  1. Same seed with {num_workers} workers → identical results")
-    print("  2. Different seeds → different results")
-    print("  3. Same seed with different worker counts → consistent results")
-    
-    # Run tests
-    test1_pass = test_parallel_reproducibility(config_path, num_workers)
-    test2_pass = test_seed_effect(config_path, num_workers)
-    test3_pass = test_worker_count_independence(config_path)
-    
-    # Summary
-    print_header("SUMMARY")
-    
-    if test1_pass and test2_pass and test3_pass:
-        print("✅ ALL TESTS PASSED!")
-        print("\nParallel reproducibility is working correctly:")
-        print(f"  • Same seed with {num_workers} workers produces identical results")
-        print("  • Different seeds produce different evolution paths")
-        print("  • Results are consistent across different worker counts")
-    else:
-        print("⚠️  SOME TESTS DID NOT PASS")
-        if not test1_pass:
-            print("  • Parallel reproducibility test inconclusive")
-        if not test2_pass:
-            print("  • Different seeds test inconclusive")
-        if not test3_pass:
-            print("  • Worker count independence test inconclusive")
-    
-    print("\n" + "#" * 70 + "\n")
+    previous_cwd = os.getcwd()
+    os.chdir(run_dir)
+    try:
+        print(f"Run directory: {run_dir}")
+        print("\n" + "#" * 70)
+        print("#" + " " * 68 + "#")
+        print("#  NEAT-Python Parallel Evaluation with Reproducibility" + " " * 13 + "#")
+        print("#" + " " * 68 + "#")
+        print("#" * 70)
+        
+        print(f"\nSystem: {max_workers} CPU cores available")
+        print(f"Using: {num_workers} worker processes for this test")
+        
+        print("\nThis script demonstrates reproducibility in parallel evaluation by")
+        print("running evolution multiple times and comparing results.")
+        
+        print("\nThree tests will be performed:")
+        print(f"  1. Same seed with {num_workers} workers → identical results")
+        print("  2. Different seeds → different results")
+        print("  3. Same seed with different worker counts → consistent results")
+        
+        # Run tests
+        test1_pass = test_parallel_reproducibility(config_path, num_workers)
+        test2_pass = test_seed_effect(config_path, num_workers)
+        test3_pass = test_worker_count_independence(config_path)
+        
+        # Summary
+        print_header("SUMMARY")
+        
+        if test1_pass and test2_pass and test3_pass:
+            print("✅ ALL TESTS PASSED!")
+            print("\nParallel reproducibility is working correctly:")
+            print(f"  • Same seed with {num_workers} workers produces identical results")
+            print("  • Different seeds produce different evolution paths")
+            print("  • Results are consistent across different worker counts")
+        else:
+            print("⚠️  SOME TESTS DID NOT PASS")
+            if not test1_pass:
+                print("  • Parallel reproducibility test inconclusive")
+            if not test2_pass:
+                print("  • Different seeds test inconclusive")
+            if not test3_pass:
+                print("  • Worker count independence test inconclusive")
+        
+        print("\n" + "#" * 70 + "\n")
+    finally:
+        os.chdir(previous_cwd)
 
 
 if __name__ == '__main__':

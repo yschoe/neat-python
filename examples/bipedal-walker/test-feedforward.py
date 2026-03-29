@@ -5,7 +5,7 @@ examples/bipedal-walker/evolve-feedforward.py on the BipedalWalker-v3 environmen
 
 import os
 import pickle
-import sys
+import argparse
 
 import gymnasium as gym
 import neat
@@ -70,21 +70,52 @@ def load_and_test(genome_path, config_path, episodes=3, render=True):
     run_episodes(net, episodes=episodes, render=render)
 
 
-if __name__ == "__main__":
-    # Determine local paths.
-    local_dir = os.path.dirname(__file__)
-    config_path = os.path.join(local_dir, "config-feedforward")
+def resolve_run_dir_and_genome(local_dir, config_path, genome_path=None):
+    if genome_path is not None:
+        return os.path.dirname(os.path.abspath(genome_path)) or os.getcwd(), genome_path
 
-    # Optional argument: custom path to winner genome.
-    if len(sys.argv) > 1:
-        genome_path = sys.argv[1]
+    winner_name = "winner-feedforward.pickle"
+    cwd_genome = os.path.join(os.getcwd(), winner_name)
+    if os.path.exists(cwd_genome):
+        return os.getcwd(), cwd_genome
+
+    config_basename = os.path.basename(config_path)
+    run_dir = os.path.join(local_dir, f"exp-{config_basename}")
+    return run_dir, os.path.join(run_dir, winner_name)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Test BipedalWalker winner with a chosen config file."
+    )
+    parser.add_argument(
+        "config_filename",
+        nargs="?",
+        default="config-feedforward",
+        help="Config file name relative to this script, or an absolute path.",
+    )
+    parser.add_argument(
+        "genome_path",
+        nargs="?",
+        default=None,
+        help="Optional explicit path to winner genome.",
+    )
+    args = parser.parse_args()
+
+    local_dir = os.path.dirname(__file__)
+    if os.path.isabs(args.config_filename):
+        config_path = args.config_filename
     else:
-        genome_path = os.path.join(local_dir, "winner-feedforward.pickle")
+        config_path = os.path.join(local_dir, args.config_filename)
+
+    run_dir, genome_path = resolve_run_dir_and_genome(local_dir, config_path, args.genome_path)
 
     if not os.path.exists(genome_path):
         print(f"Error: Genome file not found at {genome_path}")
+        print(f"Checked cwd and run directory: {run_dir}")
         print("Please train a network first by running evolve-feedforward.py")
-        sys.exit(1)
+        raise SystemExit(1)
 
+    print(f"Run directory: {run_dir}")
     print(f"Testing genome from: {genome_path}\n")
     load_and_test(genome_path, config_path, episodes=3, render=True)

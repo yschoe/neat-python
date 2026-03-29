@@ -226,6 +226,12 @@ def run_evolution(config, eval_fn, n_generations, label, seed=42):
 def main():
     parser = argparse.ArgumentParser(
         description='Izhikevich spike pattern discrimination with CPU vs GPU comparison')
+    parser.add_argument(
+        'config_filename',
+        nargs='?',
+        default='config-iznn',
+        help='Config file name relative to this script, or an absolute path.',
+    )
     parser.add_argument('--cpu-only', action='store_true',
                         help='Run CPU evaluation only')
     parser.add_argument('--gpu-only', action='store_true',
@@ -239,7 +245,13 @@ def main():
     args = parser.parse_args()
 
     local_dir = os.path.dirname(__file__)
-    config_path = os.path.join(local_dir, 'config-iznn')
+    if os.path.isabs(args.config_filename):
+        config_path = args.config_filename
+    else:
+        config_path = os.path.join(local_dir, args.config_filename)
+    config_basename = os.path.basename(config_path)
+    run_dir = os.path.join(local_dir, f'exp-{config_basename}')
+    os.makedirs(run_dir, exist_ok=True)
     config = neat.Config(neat.iznn.IZGenome, neat.DefaultReproduction,
                          neat.DefaultSpeciesSet, neat.DefaultStagnation,
                          config_path)
@@ -261,77 +273,83 @@ def main():
         print("Install with: pip install 'neat-python[gpu]'")
         return
 
-    # Banner.
-    print('=' * 65)
-    print('Izhikevich Spike Pattern Discrimination')
-    print('=' * 65)
-    print(f'Task:        Temporal XOR — selective spiking per input phase')
-    print(f'Phases:      off/off, on/off, off/on, on/on '
-          f'({PHASE_DURATION:.1f} ms each)')
-    print(f'Simulation:  dt={DT} ms, t_max={T_MAX} ms, {NUM_STEPS} steps')
-    print(f'Population:  {config.pop_size}')
-    print(f'Generations: {args.generations}')
-    print(f'Seed:        {args.seed}')
-    print(f'GPU:         {"available" if gpu_ok else "not available"}')
-    print(f'Max fitness: 8.0 (1 point per correct output per phase)')
-    print()
-
-    cpu_result = None
-    gpu_result = None
-
-    # --- CPU run ---
-    if not args.gpu_only:
-        print('-' * 65)
-        print('Running CPU evaluation...')
-        print('-' * 65)
-        cpu_winner, cpu_times, cpu_total = run_evolution(
-            config, eval_genomes_cpu, args.generations, 'CPU', seed=args.seed)
-        cpu_result = (cpu_winner, cpu_times, cpu_total)
-        print(f'\nCPU: {cpu_total:.2f}s total, '
-              f'{sum(cpu_times)/len(cpu_times):.4f}s/gen avg, '
-              f'best fitness = {cpu_winner.fitness:.1f}/8.0')
-
-    # --- GPU run ---
-    if gpu_ok and not args.cpu_only:
-        print()
-        print('-' * 65)
-        print('Running GPU evaluation...')
-        print('-' * 65)
-        gpu_eval = make_gpu_evaluator()
-        gpu_winner, gpu_times, gpu_total = run_evolution(
-            config, gpu_eval.evaluate, args.generations, 'GPU', seed=args.seed)
-        gpu_result = (gpu_winner, gpu_times, gpu_total)
-        print(f'\nGPU: {gpu_total:.2f}s total, '
-              f'{sum(gpu_times)/len(gpu_times):.4f}s/gen avg, '
-              f'best fitness = {gpu_winner.fitness:.1f}/8.0')
-
-    # --- Comparison ---
-    if cpu_result and gpu_result:
-        cpu_winner, cpu_times, cpu_total = cpu_result
-        gpu_winner, gpu_times, gpu_total = gpu_result
-
-        cpu_eval_avg = sum(cpu_times) / len(cpu_times)
-        gpu_eval_avg = sum(gpu_times) / len(gpu_times)
-        speedup = cpu_total / gpu_total if gpu_total > 0 else float('inf')
-        eval_speedup = cpu_eval_avg / gpu_eval_avg if gpu_eval_avg > 0 else float('inf')
-
-        print()
+    previous_cwd = os.getcwd()
+    os.chdir(run_dir)
+    try:
+        # Banner.
+        print(f'Run directory: {run_dir}')
         print('=' * 65)
-        print('Performance Comparison')
+        print('Izhikevich Spike Pattern Discrimination')
         print('=' * 65)
-        print(f'{"":>20} {"CPU":>12} {"GPU":>12} {"Speedup":>12}')
-        print(f'{"":>20} {"---":>12} {"---":>12} {"-------":>12}')
-        print(f'{"Total time":>20} {cpu_total:>11.2f}s {gpu_total:>11.2f}s '
-              f'{speedup:>10.1f}x')
-        print(f'{"Avg per generation":>20} {cpu_eval_avg:>11.4f}s {gpu_eval_avg:>11.4f}s '
-              f'{eval_speedup:>10.1f}x')
-        print(f'{"Best fitness":>20} {cpu_winner.fitness:>10.1f}/8 '
-              f'{gpu_winner.fitness:>10.1f}/8')
+        print(f'Task:        Temporal XOR — selective spiking per input phase')
+        print(f'Phases:      off/off, on/off, off/on, on/on '
+              f'({PHASE_DURATION:.1f} ms each)')
+        print(f'Simulation:  dt={DT} ms, t_max={T_MAX} ms, {NUM_STEPS} steps')
+        print(f'Population:  {config.pop_size}')
+        print(f'Generations: {args.generations}')
+        print(f'Seed:        {args.seed}')
+        print(f'GPU:         {"available" if gpu_ok else "not available"}')
+        print(f'Max fitness: 8.0 (1 point per correct output per phase)')
         print()
-        print(f'Note: The Izhikevich model runs {NUM_STEPS} integration steps '
-              f'per genome, making')
-        print(f'      GPU batching especially effective. '
-              f'Try --pop-size 1000 for larger speedups.')
+
+        cpu_result = None
+        gpu_result = None
+
+        # --- CPU run ---
+        if not args.gpu_only:
+            print('-' * 65)
+            print('Running CPU evaluation...')
+            print('-' * 65)
+            cpu_winner, cpu_times, cpu_total = run_evolution(
+                config, eval_genomes_cpu, args.generations, 'CPU', seed=args.seed)
+            cpu_result = (cpu_winner, cpu_times, cpu_total)
+            print(f'\nCPU: {cpu_total:.2f}s total, '
+                  f'{sum(cpu_times)/len(cpu_times):.4f}s/gen avg, '
+                  f'best fitness = {cpu_winner.fitness:.1f}/8.0')
+
+        # --- GPU run ---
+        if gpu_ok and not args.cpu_only:
+            print()
+            print('-' * 65)
+            print('Running GPU evaluation...')
+            print('-' * 65)
+            gpu_eval = make_gpu_evaluator()
+            gpu_winner, gpu_times, gpu_total = run_evolution(
+                config, gpu_eval.evaluate, args.generations, 'GPU', seed=args.seed)
+            gpu_result = (gpu_winner, gpu_times, gpu_total)
+            print(f'\nGPU: {gpu_total:.2f}s total, '
+                  f'{sum(gpu_times)/len(gpu_times):.4f}s/gen avg, '
+                  f'best fitness = {gpu_winner.fitness:.1f}/8.0')
+
+        # --- Comparison ---
+        if cpu_result and gpu_result:
+            cpu_winner, cpu_times, cpu_total = cpu_result
+            gpu_winner, gpu_times, gpu_total = gpu_result
+
+            cpu_eval_avg = sum(cpu_times) / len(cpu_times)
+            gpu_eval_avg = sum(gpu_times) / len(gpu_times)
+            speedup = cpu_total / gpu_total if gpu_total > 0 else float('inf')
+            eval_speedup = cpu_eval_avg / gpu_eval_avg if gpu_eval_avg > 0 else float('inf')
+
+            print()
+            print('=' * 65)
+            print('Performance Comparison')
+            print('=' * 65)
+            print(f'{"":>20} {"CPU":>12} {"GPU":>12} {"Speedup":>12}')
+            print(f'{"":>20} {"---":>12} {"---":>12} {"-------":>12}')
+            print(f'{"Total time":>20} {cpu_total:>11.2f}s {gpu_total:>11.2f}s '
+                  f'{speedup:>10.1f}x')
+            print(f'{"Avg per generation":>20} {cpu_eval_avg:>11.4f}s {gpu_eval_avg:>11.4f}s '
+                  f'{eval_speedup:>10.1f}x')
+            print(f'{"Best fitness":>20} {cpu_winner.fitness:>10.1f}/8 '
+                  f'{gpu_winner.fitness:>10.1f}/8')
+            print()
+            print(f'Note: The Izhikevich model runs {NUM_STEPS} integration steps '
+                  f'per genome, making')
+            print(f'      GPU batching especially effective. '
+                  f'Try --pop-size 1000 for larger speedups.')
+    finally:
+        os.chdir(previous_cwd)
 
 
 if __name__ == '__main__':

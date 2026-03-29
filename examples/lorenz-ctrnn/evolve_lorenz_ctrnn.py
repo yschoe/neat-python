@@ -279,14 +279,12 @@ def pearson_correlation(xs, ys):
 # Configuration loading with optional overrides
 # ---------------------------------------------------------------------------
 
-def load_config(genome_overrides=None):
-    """Load config-ctrnn from this script's directory.
+def load_config(config_path, genome_overrides=None):
+    """Load configuration from a provided path.
 
     If genome_overrides is provided, write a temporary config file with the
     modified [DefaultGenome] values and load from that.
     """
-    config_path = os.path.join(os.path.dirname(__file__), 'config-ctrnn')
-
     if not genome_overrides:
         return neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                            neat.DefaultSpeciesSet, neat.DefaultStagnation,
@@ -344,7 +342,7 @@ def try_visualize(winner, config, test_input, test_raw, norm_params,
     # True test data in physical units (offset by 1 to align with predictions)
     true_phys = test_raw[1:n_pred + 1]
 
-    results_dir = os.path.join(os.path.dirname(__file__), 'results')
+    results_dir = os.path.abspath('results')
     os.makedirs(results_dir, exist_ok=True)
 
     # 3D phase portrait (only for 3-output mode)
@@ -415,6 +413,12 @@ def main():
 
     parser = argparse.ArgumentParser(
         description='Evolve a CTRNN to predict Lorenz attractor dynamics')
+    parser.add_argument(
+        'config_filename',
+        nargs='?',
+        default='config-ctrnn',
+        help='Config file name relative to this script, or an absolute path.',
+    )
     parser.add_argument('--mode', choices=['base', 'products', 'product-agg'],
                         default='base', help='Input representation mode (default: base)')
     parser.add_argument('--z-only', action='store_true',
@@ -427,105 +431,119 @@ def main():
     z_only = args.z_only
     num_workers = args.workers or multiprocessing.cpu_count()
     start_time = time.time()
+    local_dir = os.path.dirname(__file__)
+    if os.path.isabs(args.config_filename):
+        config_path = args.config_filename
+    else:
+        config_path = os.path.join(local_dir, args.config_filename)
+    config_basename = os.path.basename(config_path)
+    run_dir = os.path.join(local_dir, f'exp-{config_basename}')
+    os.makedirs(run_dir, exist_ok=True)
 
-    # Determine input/output dimensions
-    num_inputs = 6 if mode == 'products' else 3
-    target_rows = [2] if z_only else [0, 1, 2]
-    num_outputs = len(target_rows)
-    target_labels = ['z'] if z_only else ['x', 'y', 'z']
+    previous_cwd = os.getcwd()
+    os.chdir(run_dir)
+    try:
+        # Determine input/output dimensions
+        num_inputs = 6 if mode == 'products' else 3
+        target_rows = [2] if z_only else [0, 1, 2]
+        num_outputs = len(target_rows)
+        target_labels = ['z'] if z_only else ['x', 'y', 'z']
 
-    # Banner
-    output_str = 'z only' if z_only else 'x, y, z'
-    print('=' * 60)
-    print('Lorenz Attractor CTRNN Prediction')
-    print('=' * 60)
-    print(f'Mode:       {mode} -- {MODE_DESCRIPTIONS[mode]}')
-    print(f'Outputs:    {output_str} ({num_outputs})')
-    print(f'Lorenz:     sigma={LORENZ_SIGMA}, rho={LORENZ_RHO}, '
-          f'beta={LORENZ_BETA:.4f}')
-    print(f'Integration: {TOTAL_STEPS} steps at dt={INTEGRATION_DT}, '
-          f'subsampled {SUBSAMPLE}x (effective dt={DATA_DT})')
-    print(f'Data split: {TRANSIENT_STEPS} transient + {TRAIN_STEPS} train + '
-          f'{TEST_STEPS} test integration steps')
-    print(f'After subsampling: {TRAIN_STEPS // SUBSAMPLE} train points, '
-          f'{TEST_STEPS // SUBSAMPLE} test points')
-    print(f'Evolution:  {N_GENERATIONS} generations, pop_size=150')
-    print(f'CTRNN:      per-node time constants (evolved)')
-    print(f'Workers:    {num_workers}')
-    print()
+        # Banner
+        output_str = 'z only' if z_only else 'x, y, z'
+        print(f'Run directory: {run_dir}')
+        print('=' * 60)
+        print('Lorenz Attractor CTRNN Prediction')
+        print('=' * 60)
+        print(f'Mode:       {mode} -- {MODE_DESCRIPTIONS[mode]}')
+        print(f'Outputs:    {output_str} ({num_outputs})')
+        print(f'Lorenz:     sigma={LORENZ_SIGMA}, rho={LORENZ_RHO}, '
+              f'beta={LORENZ_BETA:.4f}')
+        print(f'Integration: {TOTAL_STEPS} steps at dt={INTEGRATION_DT}, '
+              f'subsampled {SUBSAMPLE}x (effective dt={DATA_DT})')
+        print(f'Data split: {TRANSIENT_STEPS} transient + {TRAIN_STEPS} train + '
+              f'{TEST_STEPS} test integration steps')
+        print(f'After subsampling: {TRAIN_STEPS // SUBSAMPLE} train points, '
+              f'{TEST_STEPS // SUBSAMPLE} test points')
+        print(f'Evolution:  {N_GENERATIONS} generations, pop_size=150')
+        print(f'CTRNN:      per-node time constants (evolved)')
+        print(f'Workers:    {num_workers}')
+        print()
 
-    # --- Prepare data ---
-    print('Generating Lorenz trajectory...')
-    train_input, test_input, norm_params, train_raw, test_raw = prepare_data(
-        mode=mode)
-    print(f'  {len(train_input[0])} inputs x {len(train_input)} train points, '
-          f'{len(test_input)} test points')
-    print('Normalization ranges (training set):')
-    for i, label in enumerate(['x', 'y', 'z']):
-        print(f'  {label}: [{norm_params.min_vals[i]:.2f}, '
-              f'{norm_params.max_vals[i]:.2f}]')
-    print()
+        # --- Prepare data ---
+        print('Generating Lorenz trajectory...')
+        train_input, test_input, norm_params, train_raw, test_raw = prepare_data(
+            mode=mode)
+        print(f'  {len(train_input[0])} inputs x {len(train_input)} train points, '
+              f'{len(test_input)} test points')
+        print('Normalization ranges (training set):')
+        for i, label in enumerate(['x', 'y', 'z']):
+            print(f'  {label}: [{norm_params.min_vals[i]:.2f}, '
+                  f'{norm_params.max_vals[i]:.2f}]')
+        print()
 
-    # Build input/target arrays for the eval function.
-    # Input at step t -> target at step t+1 (next-step prediction).
-    n_train_steps = len(train_input) - 1
-    _train_inputs = train_input[:n_train_steps]
-    _train_targets = [
-        [train_input[t + 1][row] for row in target_rows]
-        for t in range(n_train_steps)
-    ]
+        # Build input/target arrays for the eval function.
+        # Input at step t -> target at step t+1 (next-step prediction).
+        n_train_steps = len(train_input) - 1
+        _train_inputs = train_input[:n_train_steps]
+        _train_targets = [
+            [train_input[t + 1][row] for row in target_rows]
+            for t in range(n_train_steps)
+        ]
 
-    # --- Config overrides for mode ---
-    overrides = {}
-    if num_inputs != 3:
-        overrides['num_inputs'] = num_inputs
-    if num_outputs != 3:
-        overrides['num_outputs'] = num_outputs
-    if mode == 'product-agg':
-        overrides['aggregation_options'] = 'sum product'
-        overrides['aggregation_mutate_rate'] = '0.1'
+        # --- Config overrides for mode ---
+        overrides = {}
+        if num_inputs != 3:
+            overrides['num_inputs'] = num_inputs
+        if num_outputs != 3:
+            overrides['num_outputs'] = num_outputs
+        if mode == 'product-agg':
+            overrides['aggregation_options'] = 'sum product'
+            overrides['aggregation_mutate_rate'] = '0.1'
 
-    config = load_config(genome_overrides=overrides if overrides else None)
+        config = load_config(config_path, genome_overrides=overrides if overrides else None)
 
-    # --- Create population and reporters ---
-    pop = neat.Population(config)
-    pop.add_reporter(neat.StdOutReporter(True))
-    stats = neat.StatisticsReporter()
-    pop.add_reporter(stats)
+        # --- Create population and reporters ---
+        pop = neat.Population(config)
+        pop.add_reporter(neat.StdOutReporter(True))
+        stats = neat.StatisticsReporter()
+        pop.add_reporter(stats)
 
-    # --- Evolve with parallel evaluation ---
-    pe = neat.ParallelEvaluator(num_workers, eval_genome)
-    winner = pop.run(pe.evaluate, N_GENERATIONS)
+        # --- Evolve with parallel evaluation ---
+        pe = neat.ParallelEvaluator(num_workers, eval_genome)
+        winner = pop.run(pe.evaluate, N_GENERATIONS)
 
-    elapsed = time.time() - start_time
+        elapsed = time.time() - start_time
 
-    # --- Results ---
-    print()
-    print('=' * 60)
-    print('Evolution complete')
-    print('=' * 60)
-    print(f'  Best fitness (train): {winner.fitness:.6f}')
-    print(f'  Train MSE:            {-winner.fitness:.6f}')
-    print(f'  Nodes:                {len(winner.nodes)}')
-    print(f'  Connections:          {len(winner.connections)}')
-    print(f'  Wall-clock time:      {elapsed:.1f}s')
+        # --- Results ---
+        print()
+        print('=' * 60)
+        print('Evolution complete')
+        print('=' * 60)
+        print(f'  Best fitness (train): {winner.fitness:.6f}')
+        print(f'  Train MSE:            {-winner.fitness:.6f}')
+        print(f'  Nodes:                {len(winner.nodes)}')
+        print(f'  Connections:          {len(winner.connections)}')
+        print(f'  Wall-clock time:      {elapsed:.1f}s')
 
-    # Evaluate on held-out test set
-    test_mse, preds = evaluate_on_test(winner, config, test_input, target_rows)
-    print(f'  Test MSE:             {test_mse:.6f}')
+        # Evaluate on held-out test set
+        test_mse, preds = evaluate_on_test(winner, config, test_input, target_rows)
+        print(f'  Test MSE:             {test_mse:.6f}')
 
-    # Per-output Pearson correlation on test set
-    n_test_steps = len(preds)
-    for oi, (row, label) in enumerate(zip(target_rows, target_labels)):
-        pred_vals = [preds[t][oi] for t in range(n_test_steps)]
-        true_vals = [test_input[t + 1][row] for t in range(n_test_steps)]
-        corr = pearson_correlation(pred_vals, true_vals)
-        print(f'  {label} correlation:      {corr:.4f}')
-    print()
+        # Per-output Pearson correlation on test set
+        n_test_steps = len(preds)
+        for oi, (row, label) in enumerate(zip(target_rows, target_labels)):
+            pred_vals = [preds[t][oi] for t in range(n_test_steps)]
+            true_vals = [test_input[t + 1][row] for t in range(n_test_steps)]
+            corr = pearson_correlation(pred_vals, true_vals)
+            print(f'  {label} correlation:      {corr:.4f}')
+        print()
 
-    # --- Visualization (optional) ---
-    try_visualize(winner, config, test_input, test_raw, norm_params,
-                  target_rows, target_labels)
+        # --- Visualization (optional) ---
+        try_visualize(winner, config, test_input, test_raw, norm_params,
+                      target_rows, target_labels)
+    finally:
+        os.chdir(previous_cwd)
 
 
 if __name__ == '__main__':

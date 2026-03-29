@@ -4,6 +4,7 @@ Test and visualize a trained controller for the inverted double pendulum.
 
 import os
 import pickle
+import argparse
 
 import gymnasium as gym
 import neat
@@ -100,25 +101,53 @@ def load_and_test(genome_path, config_path, episodes=10, render=True, camera_dis
     return test_network(net, episodes=episodes, render=render, camera_distance=camera_distance)
 
 
+def resolve_run_dir_and_genome(local_dir, config_path, genome_path=None):
+    if genome_path is not None:
+        return os.path.dirname(os.path.abspath(genome_path)) or os.getcwd(), genome_path
+
+    winner_name = 'winner-feedforward.pickle'
+    cwd_genome = os.path.join(os.getcwd(), winner_name)
+    if os.path.exists(cwd_genome):
+        return os.getcwd(), cwd_genome
+
+    config_basename = os.path.basename(config_path)
+    run_dir = os.path.join(local_dir, f'exp-{config_basename}')
+    return run_dir, os.path.join(run_dir, winner_name)
+
+
 if __name__ == '__main__':
-    import sys
-    
-    # Determine paths
+    parser = argparse.ArgumentParser(
+        description='Test InvertedDoublePendulum winner with a chosen config file.'
+    )
+    parser.add_argument(
+        'config_filename',
+        nargs='?',
+        default='config-feedforward',
+        help='Config file name relative to this script, or an absolute path.',
+    )
+    parser.add_argument(
+        'genome_path',
+        nargs='?',
+        default=None,
+        help='Optional explicit path to winner genome.',
+    )
+    args = parser.parse_args()
+
     local_dir = os.path.dirname(__file__)
-    config_path = os.path.join(local_dir, 'config-feedforward')
-    
-    # Check if a genome file was specified
-    if len(sys.argv) > 1:
-        genome_path = sys.argv[1]
+    if os.path.isabs(args.config_filename):
+        config_path = args.config_filename
     else:
-        genome_path = os.path.join(local_dir, 'winner-feedforward.pickle')
+        config_path = os.path.join(local_dir, args.config_filename)
+    run_dir, genome_path = resolve_run_dir_and_genome(local_dir, config_path, args.genome_path)
     
     # Check if genome file exists
     if not os.path.exists(genome_path):
         print(f"Error: Genome file not found at {genome_path}")
+        print(f"Checked cwd and run directory: {run_dir}")
         print("Please train a network first by running evolve-feedforward.py")
-        sys.exit(1)
+        raise SystemExit(1)
     
     # Test the network
+    print(f"Run directory: {run_dir}")
     print(f"Testing genome from: {genome_path}\n")
     load_and_test(genome_path, config_path, episodes=5, render=True, camera_distance=4.0)
