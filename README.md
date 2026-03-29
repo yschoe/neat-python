@@ -3,6 +3,34 @@
 [![Coverage Status](https://coveralls.io/repos/CodeReclaimers/neat-python/badge.svg?branch=master&service=github)](https://coveralls.io/github/CodeReclaimers/neat-python?branch=master)
 [![Downloads](https://static.pepy.tech/personalized-badge/neat-python?period=total&units=international_system&left_color=grey&right_color=blue&left_text=Downloads)](https://pepy.tech/project/neat-python)
 
+> [!IMPORTANT]
+> ## Fork Notice (neat-python + ANJI-focused extensions)
+> This repository is a fork of upstream `neat-python` with fork-specific additions focused on ANJI compatibility and experiment workflow support.
+>
+> Highlights (brief):
+> - ANJI-oriented compatibility/config work (ANJI project: https://sourceforge.net/projects/anji/)
+> - Example snapshot support via `snapshot_interval` in `[NEAT]` config
+> - Example runner/test workflow updates (`exp-<config>/` outputs, snapshot-selectable tests)
+> - Topology plot readability tweaks (ANJI-style layout/ranking for input/output interpretation)
+>
+> Fork-specific docs:
+> - [`python-vs-java/report.md`](python-vs-java/report.md)
+>   - High-level comparison of this fork’s NEAT behavior vs. ANJI/Java implementation choices.
+> - [`python-vs-java/anji-mode-parity-checklist.md`](python-vs-java/anji-mode-parity-checklist.md)
+>   - Feature-by-feature parity status, gaps, and compatibility notes for ANJI mode.
+> - [`python-vs-java/config.md`](python-vs-java/config.md)
+>   - Item-by-item reference for ANJI-related configuration keys and fork-specific config behavior.
+> - [`log.md`](log.md)
+>   - Chronological summary of repository-level changes.
+> - [`transcript.md`](transcript.md)
+>   - Detailed implementation transcript of requests, edits, and validation steps.
+>
+> Upstream project and original authorship remain credited by the original README and project metadata below.
+>
+> ---
+> Fork maintenance note:
+> Initial ANJI-mode integration and follow-on migration/tooling updates were developed with assistance from **ChatGPT Codex (OpenAI, GPT-5-based coding agent)**.
+
 ## About ##
 
 NEAT (NeuroEvolution of Augmenting Topologies) is a method developed by Kenneth O. Stanley for evolving arbitrary neural
@@ -106,4 +134,3 @@ Specializations include computational geometry, CAD reverse engineering, C++ sci
 Available for research consulting and implementation engagements.
 Full profile: [https://codereclaimers.com/consulting](https://codereclaimers.com/consulting)
 Contact: consulting@codereclaimers.com
-
