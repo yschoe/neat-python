@@ -203,3 +203,195 @@ This transcript captures the main user requests, assistant responses, tool invoc
 ### Assistant action
 - Replaced/created this detailed `transcript.md` with anonymized `ANON` path/remote references.
 
+---
+
+## 10. Extend runtime-dir behavior to all evolve scripts
+
+### User request
+- Apply the same change to all `examples/*/evolve*.py`: optional config filename argument and output into `exp-<config-filename>/`.
+
+### Assistant response (summary)
+- Enumerated all evolve scripts under `examples/`.
+- Updated the remaining scripts (including XOR variants, memory examples, picture2d, GPU examples, and Lorenz CTRNN) to:
+  - accept optional config filename argument (default preserved)
+  - resolve relative config paths from script directory
+  - use `exp-<config-filename>/` run directory for artifacts.
+
+### Tool invocations and outputs (highlights)
+- `find examples -type f -name 'evolve*.py' | sort`
+  - Listed 20 evolve scripts.
+- `python3 -m compileall -q examples && echo compile_ok`
+  - Output: `compile_ok`.
+
+---
+
+## 11. Diagnose lunar-lander ANJI slowdown
+
+### User request
+- Reported that lunar-lander ANJI run appears stuck around generation 7-9 and shared CTRL-C traceback.
+
+### Assistant response (summary)
+- Interpreted traceback as slowdown during reproduction/mutation, not multiprocessing deadlock.
+- Pinpointed stack path to `AnjiGenome.mutate()` and `_prune_dangling_nodes()`.
+- Suggested immediate config mitigations:
+  - `anji_topology_mutation_classic = true`
+  - lower topology add rates
+  - lower `pop_size` for debug
+  - optionally disable prune temporarily to confirm bottleneck.
+
+### Tool invocations and outputs (highlights)
+- Read:
+  - `neat/genome.py` (`_prune_dangling_nodes`)
+  - `neat/anji_compat.py` (mutation and reproduction internals).
+
+---
+
+## 12. Update all test scripts
+
+### User request
+- Update all `examples/*/test-*.py` to take config filename and use current directory or `exp-<config-filename>` working directory.
+
+### Assistant response (summary)
+- Updated six test scripts:
+  - `examples/bipedal-walker/test-feedforward.py`
+  - `examples/hopper/test-feedforward.py`
+  - `examples/inverted-double-pendulum/test-feedforward.py`
+  - `examples/lunar-lander/test-feedforward.py`
+  - `examples/single-pole-balancing/test-feedforward.py`
+  - `examples/single-pole-balancing/test-ctrnn.py`
+- Implemented resolution policy:
+  - prefer winner file in current working directory
+  - fallback to `exp-<config-filename>/`.
+
+### Tool invocations and outputs (highlights)
+- `find examples -type f -name 'test-*.py' | sort`
+  - Listed 6 test scripts.
+- `python3 -m compileall -q examples && echo compile_ok`
+  - Output: `compile_ok`.
+
+---
+
+## 13. Add missing ANJI entries across ANJI config files
+
+### User request
+- Noted that, except single-pole-balancing, ANJI config files lacked ANJI-specific config entries; requested updates for all.
+
+### Assistant response (summary)
+- Added explicit ANJI keys to all `examples/*/config*anji*` files.
+- Added in genome section (`DefaultGenome`/`IZGenome`):
+  - `anji_topology_mutation_classic`
+  - `anji_mutate_nodes`
+  - `anji_prune`
+  - `anji_remove_connection_rate`
+- Added in `DefaultReproduction`:
+  - `anji_survival_rate`
+  - `anji_elitism`
+  - `anji_elitism_min_species_size`
+  - `anji_clone_slice`
+  - `anji_crossover_slice`
+- Kept values aligned with existing config intent (e.g., survival rate from `survival_threshold`, removal rate from existing delete rate).
+
+### Tool invocations and outputs (highlights)
+- Coverage audit:
+  - `for f in $(find examples -type f -name 'config*anji*' | sort); ... rg ...`
+  - Final output confirmed each ANJI config has both:
+    - `anji_topology_mutation_classic` and
+    - `anji_survival_rate`.
+
+---
+
+## 14. Commit and push
+
+### User request
+- Commit and push.
+
+### Assistant response (summary)
+- Staged tracked `examples/` updates only (excluded untracked runtime/junk files).
+- Created and pushed commit to `master`.
+
+### Tool invocations and outputs (highlights)
+- `git status --short`
+  - Confirmed modified tracked files and separate untracked artifacts.
+- `git add -u examples && git commit -m "Examples: add config-driven exp dirs and explicit ANJI knobs"`
+  - Output: commit created.
+- `git push`
+  - Output: `b6491ee..9742452  master -> master`.
+
+### Commit
+- `9742452` — `Examples: add config-driven exp dirs and explicit ANJI knobs`
+
+---
+
+## 15. End-of-day docs update
+
+### User request
+- Update `log.md` and `transcript.md`.
+
+### Assistant response (summary)
+- Appended date-stamped entries to `log.md`.
+- Appended this detailed continuation to `transcript.md`.
+
+---
+
+## 16. Network plot layout alignment with ANJI style
+
+### User request
+- Update network topology plots to match ANJI-style readability (`rankdir=BT`, input/output rank separation).
+
+### Assistant response (summary)
+- Updated all example `visualize.py` `draw_net(...)` functions to:
+  - set `rankdir=BT`
+  - place input nodes in `rank=min`
+  - place output nodes in `rank=max`.
+
+### Files updated
+- `examples/bipedal-walker/visualize.py`
+- `examples/hopper/visualize.py`
+- `examples/inverted-double-pendulum/visualize.py`
+- `examples/lunar-lander/visualize.py`
+- `examples/memory-fixed/visualize.py`
+- `examples/memory-variable/visualize.py`
+- `examples/single-pole-balancing/visualize.py`
+- `examples/xor/visualize.py`
+
+### Tool invocations and outputs (highlights)
+- `python3 -m compileall -q examples && echo compile_ok`
+  - Output: `compile_ok`.
+
+---
+
+## 17. Add DOT conversion utility
+
+### User request
+- Add a script to convert old-style DOT/GV to new-style layout and generate SVG.
+- Then move it to repo-root `tools/` as `fixdot.py`.
+
+### Assistant response (summary)
+- Implemented converter utility:
+  - initial path: `scratch/tools/dot_relayout.py`
+  - final path: `tools/fixdot.py`
+- Functionality:
+  - adds `rankdir=BT` if missing
+  - detects input/output nodes from attributes
+  - adds rank blocks (`rank=min` for inputs, `rank=max` for outputs)
+  - writes new DOT and renders SVG via `dot`.
+
+### Tool invocations and outputs (highlights)
+- Ran conversion test:
+  - `python3 scratch/tools/dot_relayout.py examples/lunar-lander/exp-config-feedforward-anji/winner-feedforward.gv`
+  - Output files:
+    - `winner-feedforward-bt.gv`
+    - `winner-feedforward-bt.svg`
+- Moved and staged file:
+  - `tools/fixdot.py` (added to git index).
+
+---
+
+## 18. Final docs+commit/push request
+
+### User request
+- Update `log.md` and `transcript.md`, commit all, and push.
+
+### Assistant response (summary)
+- Updated both docs with these final sections.
+- Prepared final commit with tracked project changes and pushed to `master`.

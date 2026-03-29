@@ -3,7 +3,7 @@ fitness_criterion     = max
 # Terminate when we reliably solve the task (LunarLander is considered solved
 # around an average reward of 200).
 fitness_threshold     = 200.0
-pop_size              = 150
+pop_size              = 250
 reset_on_extinction   = 0
 
 no_fitness_termination         = False

@@ -136,21 +136,38 @@ def draw_net(config, genome, view=False, filename=None, node_names=None, show_di
         'width': '0.2'}
 
     dot = graphviz.Digraph(format=fmt, node_attr=node_attrs)
+    dot.attr(rankdir='BT')
 
     inputs = set()
+    input_names = []
     for k in config.genome_config.input_keys:
         inputs.add(k)
         name = node_names.get(k, str(k))
+        input_names.append(name)
         input_attrs = {'style': 'filled', 'shape': 'box', 'fillcolor': node_colors.get(k, 'lightgray')}
         dot.node(name, _attributes=input_attrs)
 
     outputs = set()
+    output_names = []
     for k in config.genome_config.output_keys:
         outputs.add(k)
         name = node_names.get(k, str(k))
+        output_names.append(name)
         node_attrs = {'style': 'filled', 'fillcolor': node_colors.get(k, 'lightblue')}
 
         dot.node(name, _attributes=node_attrs)
+
+    if input_names:
+        with dot.subgraph() as sub:
+            sub.attr(rank='min')
+            for name in input_names:
+                sub.node(name)
+
+    if output_names:
+        with dot.subgraph() as sub:
+            sub.attr(rank='max')
+            for name in output_names:
+                sub.node(name)
 
     used_nodes = set(genome.nodes.keys())
     for n in used_nodes:
