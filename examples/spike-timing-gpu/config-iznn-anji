@@ -1,6 +1,7 @@
 [NEAT]
 fitness_criterion     = max
 fitness_threshold     = 7.9
+snapshot_interval      = 100
 pop_size              = 300
 reset_on_extinction   = False
 no_fitness_termination = False

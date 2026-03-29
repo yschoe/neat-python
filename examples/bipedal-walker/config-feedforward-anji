@@ -6,6 +6,7 @@ pop_size               = 150
 reset_on_extinction    = 0
 seed                   = 1
 no_fitness_termination = False
+snapshot_interval      = 100
 
 algorithm_mode        = anji
 [DefaultGenome]

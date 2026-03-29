@@ -17,9 +17,11 @@ Usage:
 """
 
 import argparse
+import copy
 import math
 import multiprocessing
 import os
+import pickle
 import time
 from configparser import ConfigParser
 from tempfile import NamedTemporaryFile
@@ -508,6 +510,33 @@ def main():
         pop.add_reporter(neat.StdOutReporter(True))
         stats = neat.StatisticsReporter()
         pop.add_reporter(stats)
+        snapshot_interval = max(1, int(getattr(config, "snapshot_interval", 100)))
+
+        class SnapshotReporter(neat.reporting.BaseReporter):
+            def __init__(self):
+                self.generation = 0
+
+            def start_generation(self, generation):
+                self.generation = generation
+
+            def post_evaluate(self, config, population, species, best_genome):
+                completed_generation = self.generation + 1
+                if completed_generation % snapshot_interval != 0:
+                    return
+
+                snapshot_dir = f"snapshot-{completed_generation:05d}"
+                os.makedirs(snapshot_dir, exist_ok=True)
+                with open(os.path.join(snapshot_dir, "winner-lorenz.pickle"), "wb") as f:
+                    pickle.dump(copy.deepcopy(best_genome), f)
+
+                print("\n" + "=" * 72)
+                print(
+                    f" SNAPSHOT SAVED: generation {completed_generation:05d} -> "
+                    f"{os.path.abspath(snapshot_dir)}"
+                )
+                print("=" * 72 + "\n")
+
+        pop.add_reporter(SnapshotReporter())
 
         # --- Evolve with parallel evaluation ---
         pe = neat.ParallelEvaluator(num_workers, eval_genome)

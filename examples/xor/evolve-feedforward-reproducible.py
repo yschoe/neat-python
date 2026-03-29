@@ -14,7 +14,10 @@ Key features:
 import os
 import random
 import argparse
+import copy
+import pickle
 import neat
+import visualize
 
 # 2-input XOR inputs and expected outputs
 xor_inputs = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
@@ -29,6 +32,59 @@ def eval_genomes(genomes, config):
         for xi, xo in zip(xor_inputs, xor_outputs):
             output = net.activate(xi)
             genome.fitness -= (output[0] - xo[0]) ** 2
+
+
+def get_node_names():
+    return {-1: 'A', -2: 'B', 0: 'A XOR B'}
+
+
+def save_run_artifacts(output_dir, config, genome, stats, node_names, view):
+    os.makedirs(output_dir, exist_ok=True)
+    with open(os.path.join(output_dir, 'winner-feedforward.pickle'), 'wb') as f:
+        pickle.dump(genome, f)
+    visualize.draw_net(
+        config, genome, view=view, node_names=node_names,
+        filename=os.path.join(output_dir, 'winner-feedforward.gv')
+    )
+    visualize.draw_net(
+        config, genome, view=view, node_names=node_names, prune_unused=True,
+        filename=os.path.join(output_dir, 'winner-feedforward-pruned.gv')
+    )
+    visualize.plot_stats(
+        stats, ylog=False, view=view,
+        filename=os.path.join(output_dir, 'avg_fitness.svg')
+    )
+    visualize.plot_species(
+        stats, view=view, filename=os.path.join(output_dir, 'speciation.svg')
+    )
+
+
+class SnapshotReporter(neat.reporting.BaseReporter):
+    def __init__(self, snapshot_interval, config, stats, node_names):
+        self.snapshot_interval = max(1, int(snapshot_interval))
+        self.config = config
+        self.stats = stats
+        self.node_names = node_names
+        self.generation = 0
+
+    def start_generation(self, generation):
+        self.generation = generation
+
+    def post_evaluate(self, config, population, species, best_genome):
+        completed_generation = self.generation + 1
+        if completed_generation % self.snapshot_interval != 0:
+            return
+        snapshot_dir = f"snapshot-{completed_generation:05d}"
+        save_run_artifacts(
+            snapshot_dir, self.config, copy.deepcopy(best_genome), self.stats,
+            self.node_names, view=False
+        )
+        print("\n" + "=" * 72)
+        print(
+            f" SNAPSHOT SAVED: generation {completed_generation:05d} -> "
+            f"{os.path.abspath(snapshot_dir)}"
+        )
+        print("=" * 72 + "\n")
 
 
 def run_with_seed(config_path, seed, generations=50):
@@ -46,12 +102,18 @@ def run_with_seed(config_path, seed, generations=50):
     
     # Create population with seed - this enables reproducibility
     pop = neat.Population(config, seed=seed)
+    stats = neat.StatisticsReporter()
+    pop.add_reporter(stats)
+    node_names = get_node_names()
+    snapshot_interval = getattr(config, "snapshot_interval", 100)
+    pop.add_reporter(SnapshotReporter(snapshot_interval, config, stats, node_names))
     
     # Don't show output for cleaner comparison
     # (reduce noise in reproducibility verification)
     
     # Run evolution
     winner = pop.run(eval_genomes, generations)
+    save_run_artifacts(".", config, winner, stats, node_names, view=False)
     
     # Create a simple hash of genome structure for comparison
     # (fitness alone isn't enough - structure should be identical)

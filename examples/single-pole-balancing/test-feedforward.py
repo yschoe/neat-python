@@ -10,7 +10,7 @@ import neat
 from cart_pole import CartPole, discrete_actuator_force
 from movie import make_movie
 
-def run(config_filename='config-feedforward'):
+def run(config_filename='config-feedforward', snapshot=None):
     local_dir = os.path.dirname(__file__)
     if os.path.isabs(config_filename):
         config_path = config_filename
@@ -19,6 +19,8 @@ def run(config_filename='config-feedforward'):
 
     config_basename = os.path.basename(config_path)
     exp_run_dir = os.path.join(local_dir, f'exp-{config_basename}')
+    if snapshot is not None:
+        exp_run_dir = os.path.join(exp_run_dir, f'snapshot-{snapshot:05d}')
     cwd_winner = os.path.join(os.getcwd(), 'winner-feedforward')
     exp_winner = os.path.join(exp_run_dir, 'winner-feedforward')
     if os.path.isfile(cwd_winner):
@@ -100,5 +102,11 @@ if __name__ == '__main__':
         default='config-feedforward',
         help='Config file name (relative to this script) or absolute path.',
     )
+    parser.add_argument(
+        '--snapshot',
+        type=int,
+        default=None,
+        help='Snapshot generation number to load (e.g. 100 loads snapshot-00100).',
+    )
     args = parser.parse_args()
-    run(args.config_filename)
+    run(args.config_filename, snapshot=args.snapshot)

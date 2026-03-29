@@ -101,16 +101,25 @@ def load_and_test(genome_path, config_path, episodes=10, render=True, camera_dis
     return test_network(net, episodes=episodes, render=render, camera_distance=camera_distance)
 
 
-def resolve_run_dir_and_genome(local_dir, config_path, genome_path=None):
+def resolve_run_dir_and_genome(local_dir, config_path, genome_path=None, snapshot=None):
     if genome_path is not None:
         return os.path.dirname(os.path.abspath(genome_path)) or os.getcwd(), genome_path
 
     winner_name = 'winner-feedforward.pickle'
+    config_basename = os.path.basename(config_path)
+
+    if snapshot is not None:
+        run_dir = os.path.join(
+            local_dir,
+            f'exp-{config_basename}',
+            f'snapshot-{snapshot:05d}',
+        )
+        return run_dir, os.path.join(run_dir, winner_name)
+
     cwd_genome = os.path.join(os.getcwd(), winner_name)
     if os.path.exists(cwd_genome):
         return os.getcwd(), cwd_genome
 
-    config_basename = os.path.basename(config_path)
     run_dir = os.path.join(local_dir, f'exp-{config_basename}')
     return run_dir, os.path.join(run_dir, winner_name)
 
@@ -131,6 +140,12 @@ if __name__ == '__main__':
         default=None,
         help='Optional explicit path to winner genome.',
     )
+    parser.add_argument(
+        '--snapshot',
+        type=int,
+        default=None,
+        help='Snapshot generation number to load (e.g. 100 loads snapshot-00100).',
+    )
     args = parser.parse_args()
 
     local_dir = os.path.dirname(__file__)
@@ -138,7 +153,12 @@ if __name__ == '__main__':
         config_path = args.config_filename
     else:
         config_path = os.path.join(local_dir, args.config_filename)
-    run_dir, genome_path = resolve_run_dir_and_genome(local_dir, config_path, args.genome_path)
+    run_dir, genome_path = resolve_run_dir_and_genome(
+        local_dir,
+        config_path,
+        args.genome_path,
+        snapshot=args.snapshot,
+    )
     
     # Check if genome file exists
     if not os.path.exists(genome_path):

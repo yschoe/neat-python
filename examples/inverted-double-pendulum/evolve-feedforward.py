@@ -5,6 +5,7 @@ The goal is to balance both poles by applying forces to the cart.
 """
 
 import argparse
+import copy
 import multiprocessing
 import os
 import pickle
@@ -59,6 +60,82 @@ def eval_genomes(genomes, config):
         genome.fitness = eval_genome(genome, config)
 
 
+def get_node_names():
+    return {
+        -1: 'x', -2: 'y', -3: 'z',
+        -4: 'θ1', -5: 'θ2', -6: 'ẋ',
+        -7: 'ẏ', -8: 'ż', -9: 'v_tip',
+        0: 'force'
+    }
+
+
+def save_run_artifacts(output_dir, config, genome, stats, node_names, view):
+    os.makedirs(output_dir, exist_ok=True)
+
+    with open(os.path.join(output_dir, 'winner-feedforward.pickle'), 'wb') as f:
+        pickle.dump(genome, f)
+
+    visualize.plot_stats(
+        stats,
+        ylog=False,
+        view=view,
+        filename=os.path.join(output_dir, "feedforward-fitness.svg"),
+    )
+    visualize.plot_species(
+        stats,
+        view=view,
+        filename=os.path.join(output_dir, "feedforward-speciation.svg"),
+    )
+    visualize.draw_net(
+        config,
+        genome,
+        view=view,
+        node_names=node_names,
+        filename=os.path.join(output_dir, "winner-feedforward.gv"),
+    )
+    visualize.draw_net(
+        config,
+        genome,
+        view=view,
+        node_names=node_names,
+        filename=os.path.join(output_dir, "winner-feedforward-pruned.gv"),
+        prune_unused=True,
+    )
+
+
+class SnapshotReporter(neat.reporting.BaseReporter):
+    def __init__(self, snapshot_interval, config, stats, node_names):
+        self.snapshot_interval = max(1, int(snapshot_interval))
+        self.config = config
+        self.stats = stats
+        self.node_names = node_names
+        self.generation = 0
+
+    def start_generation(self, generation):
+        self.generation = generation
+
+    def post_evaluate(self, config, population, species, best_genome):
+        completed_generation = self.generation + 1
+        if completed_generation % self.snapshot_interval != 0:
+            return
+
+        snapshot_dir = f"snapshot-{completed_generation:05d}"
+        save_run_artifacts(
+            snapshot_dir,
+            self.config,
+            copy.deepcopy(best_genome),
+            self.stats,
+            self.node_names,
+            view=False,
+        )
+        print("\n" + "=" * 72)
+        print(
+            f" SNAPSHOT SAVED: generation {completed_generation:05d} -> "
+            f"{os.path.abspath(snapshot_dir)}"
+        )
+        print("=" * 72 + "\n")
+
+
 def run(config_file):
     """
     Runs the NEAT algorithm to evolve a controller for the inverted double pendulum.
@@ -83,35 +160,18 @@ def run(config_file):
         stats = neat.StatisticsReporter()
         pop.add_reporter(stats)
         pop.add_reporter(neat.StdOutReporter(True))
+        node_names = get_node_names()
+        snapshot_interval = getattr(config, "snapshot_interval", 100)
+        pop.add_reporter(SnapshotReporter(snapshot_interval, config, stats, node_names))
         pop.add_reporter(neat.Checkpointer(10))
 
         # Run evolution with parallel evaluation
         pe = neat.ParallelEvaluator(multiprocessing.cpu_count(), eval_genome)
         winner = pop.run(pe.evaluate, 1000)
 
-        # Save the winner
-        with open('winner-feedforward.pickle', 'wb') as f:
-            pickle.dump(winner, f)
-
         print(f"\nRun directory: {run_dir}")
         print(f'\n\nBest genome:\n{winner!s}')
-
-        # Visualize the results
-        visualize.plot_stats(stats, ylog=False, view=True, filename="feedforward-fitness.svg")
-        visualize.plot_species(stats, view=True, filename="feedforward-speciation.svg")
-
-        # Create node names for visualization
-        node_names = {
-            -1: 'x', -2: 'y', -3: 'z',
-            -4: 'θ1', -5: 'θ2', -6: 'ẋ',
-            -7: 'ẏ', -8: 'ż', -9: 'v_tip',
-            0: 'force'
-        }
-        
-        visualize.draw_net(config, winner, view=True, node_names=node_names,
-                          filename="winner-feedforward.gv")
-        visualize.draw_net(config, winner, view=True, node_names=node_names,
-                          filename="winner-feedforward-pruned.gv", prune_unused=True)
+        save_run_artifacts(".", config, winner, stats, node_names, view=True)
     finally:
         os.chdir(previous_cwd)
 

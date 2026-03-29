@@ -21,7 +21,9 @@ Usage:
 
 import argparse
 import os
+import pickle
 import time
+import copy
 
 import neat
 
@@ -195,6 +197,7 @@ def make_gpu_evaluator():
 def run_evolution(config, eval_fn, n_generations, label, seed=42):
     """Run NEAT evolution and return (winner, per-generation times, total time)."""
     pop = neat.Population(config, seed=seed)
+    snapshot_interval = max(1, int(getattr(config, "snapshot_interval", 100)))
 
     gen_times = []
 
@@ -208,6 +211,21 @@ def run_evolution(config, eval_fn, n_generations, label, seed=42):
         def post_evaluate(self, config, population, species, best_genome):
             elapsed = time.perf_counter() - self._gen_start
             gen_times.append(elapsed)
+
+            completed_generation = pop.generation + 1
+            if completed_generation % snapshot_interval != 0:
+                return
+
+            snapshot_dir = f"snapshot-{completed_generation:05d}"
+            os.makedirs(snapshot_dir, exist_ok=True)
+            with open(os.path.join(snapshot_dir, f"winner-{label.lower()}.pickle"), "wb") as f:
+                pickle.dump(copy.deepcopy(best_genome), f)
+            print("\n" + "=" * 72)
+            print(
+                f" SNAPSHOT SAVED: generation {completed_generation:05d} -> "
+                f"{os.path.abspath(snapshot_dir)}"
+            )
+            print("=" * 72 + "\n")
 
     pop.add_reporter(TimingReporter())
     pop.add_reporter(neat.StdOutReporter(False))

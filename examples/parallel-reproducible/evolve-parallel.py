@@ -19,8 +19,11 @@ import multiprocessing
 import os
 import random
 import argparse
+import copy
+import pickle
 
 import neat
+import visualize
 
 # Simple fitness inputs (3D space evaluation)
 test_inputs = [
@@ -63,6 +66,58 @@ def eval_genome(genome, config):
     return fitness
 
 
+def get_node_names():
+    return {-1: "X1", -2: "X2", -3: "X3", 0: "Y"}
+
+
+def save_run_artifacts(output_dir, config, genome, stats, node_names, view):
+    os.makedirs(output_dir, exist_ok=True)
+    with open(os.path.join(output_dir, "winner-parallel.pickle"), "wb") as f:
+        pickle.dump(genome, f)
+    visualize.draw_net(
+        config, genome, view=view, node_names=node_names,
+        filename=os.path.join(output_dir, "winner-parallel.gv")
+    )
+    visualize.draw_net(
+        config, genome, view=view, node_names=node_names, prune_unused=True,
+        filename=os.path.join(output_dir, "winner-parallel-pruned.gv")
+    )
+    visualize.plot_stats(
+        stats, ylog=False, view=view, filename=os.path.join(output_dir, "avg_fitness.svg")
+    )
+    visualize.plot_species(
+        stats, view=view, filename=os.path.join(output_dir, "speciation.svg")
+    )
+
+
+class SnapshotReporter(neat.reporting.BaseReporter):
+    def __init__(self, snapshot_interval, config, stats, node_names):
+        self.snapshot_interval = max(1, int(snapshot_interval))
+        self.config = config
+        self.stats = stats
+        self.node_names = node_names
+        self.generation = 0
+
+    def start_generation(self, generation):
+        self.generation = generation
+
+    def post_evaluate(self, config, population, species, best_genome):
+        completed_generation = self.generation + 1
+        if completed_generation % self.snapshot_interval != 0:
+            return
+        snapshot_dir = f"snapshot-{completed_generation:05d}"
+        save_run_artifacts(
+            snapshot_dir, self.config, copy.deepcopy(best_genome), self.stats,
+            self.node_names, view=False
+        )
+        print("\n" + "=" * 72)
+        print(
+            f" SNAPSHOT SAVED: generation {completed_generation:05d} -> "
+            f"{os.path.abspath(snapshot_dir)}"
+        )
+        print("=" * 72 + "\n")
+
+
 def run_evolution_with_seed(config_path, seed_value, num_workers, generations=30):
     """
     Run evolution with parallel evaluation and specified seed.
@@ -85,6 +140,11 @@ def run_evolution_with_seed(config_path, seed_value, num_workers, generations=30
     
     # Create population with seed
     pop = neat.Population(config, seed=seed_value)
+    stats = neat.StatisticsReporter()
+    pop.add_reporter(stats)
+    node_names = get_node_names()
+    snapshot_interval = getattr(config, "snapshot_interval", 100)
+    pop.add_reporter(SnapshotReporter(snapshot_interval, config, stats, node_names))
     
     # Create a structure hash for comparison
     def get_pop_hash():
@@ -97,6 +157,7 @@ def run_evolution_with_seed(config_path, seed_value, num_workers, generations=30
     # Run parallel evolution
     with neat.ParallelEvaluator(num_workers, eval_genome, seed=seed_value) as pe:
         winner = pop.run(pe.evaluate, generations)
+    save_run_artifacts(".", config, winner, stats, node_names, view=False)
     
     # Create structure hash for final population
     final_hash = (len(winner.nodes), len(winner.connections),

@@ -8,6 +8,8 @@ import multiprocessing
 import os
 import random
 import argparse
+import copy
+import pickle
 
 import neat
 import visualize
@@ -66,6 +68,77 @@ def eval_genomes(genomes, config):
         genome.fitness = eval_genome(genome, config)
 
 
+def get_node_names():
+    return {-1: 'input', -2: 'record', -3: 'play', 0: 'output'}
+
+
+def save_run_artifacts(output_dir, config, genome, stats, node_names, view):
+    os.makedirs(output_dir, exist_ok=True)
+
+    with open(os.path.join(output_dir, 'winner.pickle'), 'wb') as f:
+        pickle.dump(genome, f)
+
+    visualize.draw_net(
+        config,
+        genome,
+        view=view,
+        node_names=node_names,
+        filename=os.path.join(output_dir, 'winner.gv'),
+    )
+    visualize.draw_net(
+        config,
+        genome,
+        view=view,
+        node_names=node_names,
+        prune_unused=True,
+        filename=os.path.join(output_dir, 'winner-pruned.gv'),
+    )
+    visualize.plot_stats(
+        stats,
+        ylog=False,
+        view=view,
+        filename=os.path.join(output_dir, 'avg_fitness.svg'),
+    )
+    visualize.plot_species(
+        stats,
+        view=view,
+        filename=os.path.join(output_dir, 'speciation.svg'),
+    )
+
+
+class SnapshotReporter(neat.reporting.BaseReporter):
+    def __init__(self, snapshot_interval, config, stats, node_names):
+        self.snapshot_interval = max(1, int(snapshot_interval))
+        self.config = config
+        self.stats = stats
+        self.node_names = node_names
+        self.generation = 0
+
+    def start_generation(self, generation):
+        self.generation = generation
+
+    def post_evaluate(self, config, population, species, best_genome):
+        completed_generation = self.generation + 1
+        if completed_generation % self.snapshot_interval != 0:
+            return
+
+        snapshot_dir = f"snapshot-{completed_generation:05d}"
+        save_run_artifacts(
+            snapshot_dir,
+            self.config,
+            copy.deepcopy(best_genome),
+            self.stats,
+            self.node_names,
+            view=False,
+        )
+        print("\n" + "=" * 72)
+        print(
+            f" SNAPSHOT SAVED: generation {completed_generation:05d} -> "
+            f"{os.path.abspath(snapshot_dir)}"
+        )
+        print("=" * 72 + "\n")
+
+
 def run(config_filename='config'):
     # Determine path to configuration file.
     local_dir = os.path.dirname(__file__)
@@ -87,6 +160,9 @@ def run(config_filename='config'):
         stats = neat.StatisticsReporter()
         pop.add_reporter(stats)
         pop.add_reporter(neat.StdOutReporter(True))
+        node_names = get_node_names()
+        snapshot_interval = getattr(config, "snapshot_interval", 100)
+        pop.add_reporter(SnapshotReporter(snapshot_interval, config, stats, node_names))
 
         pe = neat.ParallelEvaluator(multiprocessing.cpu_count(), eval_genome)
         winner = pop.run(pe.evaluate, 1000)
@@ -119,11 +195,7 @@ def run(config_filename='config'):
 
         print(f"{num_correct} of {num_tests} correct {100.0 * num_correct / num_tests:.2f}%")
 
-        node_names = {-1: 'input', -2: 'record', -3: 'play', 0: 'output'}
-        visualize.draw_net(config, winner, True, node_names=node_names)
-        visualize.draw_net(config, winner, True, node_names=node_names, prune_unused=True)
-        visualize.plot_stats(stats, ylog=False, view=True)
-        visualize.plot_species(stats, view=True)
+        save_run_artifacts(".", config, winner, stats, node_names, view=True)
     finally:
         os.chdir(previous_cwd)
 

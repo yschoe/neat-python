@@ -151,6 +151,16 @@ class PictureBreeder:
         with open(f"rendered/genome-{os.getpid()}-{genome_id}.bin", "wb") as f:
             pickle.dump(genome, f, 2)
 
+    def save_snapshot_image(self, genome, config, snapshot_dir):
+        if self.scheme == 'gray':
+            image_data = eval_gray_image(genome, config, self.full_width, self.full_height)
+        elif self.scheme == 'color':
+            image_data = eval_color_image(genome, config, self.full_width, self.full_height)
+        else:
+            image_data = eval_mono_image(genome, config, self.full_width, self.full_height)
+        image = self.make_image_from_data(image_data, self.full_width, self.full_height)
+        pygame.image.save(image, os.path.join(snapshot_dir, "winner.png"))
+
     def eval_fitness(self, genomes, config):
         selected = []
         rects = []
@@ -225,6 +235,7 @@ def run(config_filename=None):
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                          neat.DefaultSpeciesSet, InteractiveStagnation,
                          config_path)
+    snapshot_interval = max(1, int(getattr(config, "snapshot_interval", 100)))
 
     previous_cwd = os.getcwd()
     os.chdir(run_dir)
@@ -241,6 +252,20 @@ def run(config_filename=None):
         while 1:
             pb.generation = pop.generation + 1
             pop.run(pb.eval_fitness, 1)
+            if pop.generation % snapshot_interval == 0:
+                snapshot_dir = f"snapshot-{pop.generation:05d}"
+                os.makedirs(snapshot_dir, exist_ok=True)
+                winner = stats.best_genome()
+                if winner is not None:
+                    with open(os.path.join(snapshot_dir, "winner.bin"), "wb") as f:
+                        pickle.dump(winner, f, 2)
+                    pb.save_snapshot_image(winner, config, snapshot_dir)
+                print("\n" + "=" * 72)
+                print(
+                    f" SNAPSHOT SAVED: generation {pop.generation:05d} -> "
+                    f"{os.path.abspath(snapshot_dir)}"
+                )
+                print("=" * 72 + "\n")
     finally:
         os.chdir(previous_cwd)
 

@@ -395,3 +395,48 @@ This transcript captures the main user requests, assistant responses, tool invoc
 ### Assistant response (summary)
 - Updated both docs with these final sections.
 - Prepared final commit with tracked project changes and pushed to `master`.
+
+---
+
+## 19. Add `snapshot_interval` and periodic snapshot saving
+
+### User request
+- Add config parameter `snapshot_interval` with default `100` if omitted.
+- Save intermediate artifacts during evolution under:
+  - `exp-<config-filename>/snapshot-00100/` (example for generation 100)
+- Keep final-generation artifact behavior unchanged in `exp-<config-filename>/`.
+- Update `test-feedforward.py` to accept a snapshot selector argument.
+- Apply to all examples under `examples/`.
+
+### Assistant response (summary)
+- Added global config support:
+  - `neat/config.py` now recognizes optional `[NEAT] snapshot_interval` with default `100`.
+- Implemented periodic snapshot saving across `examples/*/evolve*.py`:
+  - non-blocking plot/image generation for snapshot saves (`view=False`)
+  - prominent console print for each snapshot.
+- Updated all `examples/*/test-feedforward.py`:
+  - added `--snapshot <generation>`
+  - resolves winner from `snapshot-<generation:05d>` when provided.
+- Added `snapshot_interval = 100` in example config files containing `[NEAT]`.
+
+### Tool invocations and outputs (highlights)
+- Coverage checks:
+  - `find examples -type f -name 'evolve*.py' ... rg snapshot_interval|SnapshotReporter`
+  - verified no evolve scripts missing snapshot hooks.
+- Config audit:
+  - Python scan over `examples/config*` with `[NEAT]`
+  - Output: `all_have_snapshot_interval`.
+- Syntax validation:
+  - `python3 -m compileall -q neat examples`
+  - Output: `compile_ok`.
+
+---
+
+## 20. Final docs/commit/push request (current)
+
+### User request
+- Update `log.md` and `transcript.md`, then commit and push these changes too.
+
+### Assistant response (summary)
+- Appended this snapshot rollout record to both docs.
+- Committed tracked changes and pushed to `master` (including snapshot feature rollout).

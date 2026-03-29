@@ -91,6 +91,7 @@ def run(config_filename='novelty_config'):
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                          neat.DefaultSpeciesSet, neat.DefaultStagnation,
                          config_path)
+    snapshot_interval = max(1, int(getattr(config, "snapshot_interval", 100)))
 
     previous_cwd = os.getcwd()
     os.chdir(run_dir)
@@ -137,6 +138,20 @@ def run(config_filename='novelty_config'):
 
             float_image = np.array(image, dtype=np.float32) / 255.0
             ne.archive.append(float_image)
+
+            if pop.generation % snapshot_interval == 0:
+                snapshot_dir = f"snapshot-{pop.generation:05d}"
+                os.makedirs(snapshot_dir, exist_ok=True)
+                with open(os.path.join(snapshot_dir, "winner.bin"), "wb") as f:
+                    import pickle
+                    pickle.dump(winner, f, 2)
+                im.save(os.path.join(snapshot_dir, "winner.png"))
+                print("\n" + "=" * 72)
+                print(
+                    f" SNAPSHOT SAVED: generation {pop.generation:05d} -> "
+                    f"{os.path.abspath(snapshot_dir)}"
+                )
+                print("=" * 72 + "\n")
     finally:
         os.chdir(previous_cwd)
 

@@ -34,3 +34,12 @@
 - Added DOT converter utility:
   - `tools/fixdot.py`
   - converts old `.gv/.dot` to BT-ranked layout and renders `.svg`
+
+- Added snapshot support across examples:
+  - New optional `[NEAT]` config key: `snapshot_interval` (default `100` when omitted)
+  - `evolve*.py` scripts now save periodic snapshots under:
+    - `exp-<config-filename>/snapshot-<generation:05d>/`
+  - Snapshot saves are non-blocking (`view=False`) and print prominent console messages.
+  - Final-generation outputs in `exp-<config-filename>/` remain unchanged.
+- Updated all `test-feedforward.py` scripts to support:
+  - `--snapshot <generation>` to load `snapshot-<generation:05d>` winners.

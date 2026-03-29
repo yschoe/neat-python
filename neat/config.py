@@ -154,6 +154,7 @@ class Config:
                 ConfigParameter('fitness_threshold', float),
                 ConfigParameter('reset_on_extinction', bool),
                 ConfigParameter('no_fitness_termination', bool, False),
+                ConfigParameter('snapshot_interval', int, 100, optional=True),
                 ConfigParameter('algorithm_mode', str, 'default', optional=True),
                 ConfigParameter('seed', int, None, optional=True)]
 

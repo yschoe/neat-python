@@ -2,6 +2,7 @@
 fitness_criterion     = max
 # Hopper-v5 is considered solved around an average reward of ~3800.
 fitness_threshold     = 3800.0
+snapshot_interval      = 100
 pop_size              = 150
 reset_on_extinction   = 0
 seed                  = 1
