@@ -30,6 +30,8 @@ For convenience, a conda environment that supports running all of the examples i
 
 * `hopper` Evolve a controller for the [Gymnasium Hopper-v5](https://gymnasium.farama.org/environments/mujoco/hopper/) environment using a MuJoCo-based continuous-control task.
 
+* `navigation` Evolve a feed-forward policy for a 2D target-seeking arena, with optional obstacle barriers and ANJI-mode config support.
+
 * `parallel-reproducible` Demonstrate how to use `ParallelEvaluator` with deterministic seeding to get reproducible parallel evolution runs.
 
 * `export` Train a small XOR network and export the resulting NEAT network to a framework-agnostic JSON format.
