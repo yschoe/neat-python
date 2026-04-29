@@ -440,3 +440,169 @@ This transcript captures the main user requests, assistant responses, tool invoc
 ### Assistant response (summary)
 - Appended this snapshot rollout record to both docs.
 - Committed tracked changes and pushed to `master` (including snapshot feature rollout).
+
+---
+
+## 21. Create new `examples/navigation` from `scratch/neat-navi`
+
+### User request
+- Asked to convert `scratch/neat-navi/` into a proper repository example under `examples/navigation/`.
+- Requested alignment with current example conventions:
+  - `evolve-feedforward.py`
+  - `test-feedforward.py`
+  - `visualize.py`
+  - plain + ANJI config files
+  - snapshot saving
+  - `exp-<config-filename>/` runtime directory pattern.
+
+### Assistant response (summary)
+- Inspected `scratch/neat-navi` source (`navi2.py`, `utils.py`, configs) and compared with current example patterns.
+- Implemented new `examples/navigation/` scaffold with standardized behavior.
+- Added optional barrier support (`--barrier-length`) while keeping config/runtime conventions identical to other examples.
+- Added docs entry to `examples/README.md`.
+- Verified syntax via `compileall`.
+
+### Files created/updated
+- Created:
+  - `examples/navigation/evolve-feedforward.py`
+  - `examples/navigation/test-feedforward.py`
+  - `examples/navigation/visualize.py`
+  - `examples/navigation/config-feedforward`
+  - `examples/navigation/config-feedforward-anji`
+  - `examples/navigation/README.md`
+- Updated:
+  - `examples/README.md` (added `navigation` bullet)
+
+### Tool invocations and outputs (highlights)
+- File discovery:
+  - `rg --files scratch/neat-navi examples`
+  - Output: confirmed source files under `scratch/neat-navi` and current examples.
+- Source inspection:
+  - `sed -n ... scratch/neat-navi/navi2.py`
+  - `sed -n ... scratch/neat-navi/utils.py`
+  - `sed -n ... scratch/neat-navi/example/configs/neat_config.txt`
+- Pattern alignment reads:
+  - existing `examples/*/evolve-feedforward.py`
+  - existing `examples/*/test-feedforward.py`
+  - existing `visualize.py` and ANJI config files.
+- Syntax check:
+  - `python3 -m compileall -q examples/navigation && echo compile_ok`
+  - Output: `compile_ok`.
+
+---
+
+## 22. Mark navigation as experimental, commit, push
+
+### User request
+- Add an explicit note in `examples/navigation/README.md` that the example is still experimental.
+- Commit and push.
+
+### Assistant response (summary)
+- Added the experimental note to navigation README.
+- Staged navigation/example index files.
+- Unstaged generated runtime artifacts inadvertently included by wildcard staging.
+- Committed and pushed clean source/config/doc changes to `master`.
+
+### Tool invocations and outputs (highlights)
+- README patch applied:
+  - added: `Note: this example is still in an experimental stage and may change.`
+- Staging/status:
+  - `git add examples/navigation examples/README.md`
+  - `git status --short`
+  - Output: showed unwanted staged artifacts under `examples/navigation/exp-config-*` and `config-rnn`.
+- Cleanup staging:
+  - `git restore --staged examples/navigation/exp-config-* examples/navigation/config-rnn`
+  - Output: staged set reduced to intended files.
+- Commit:
+  - `git commit -m "Add navigation example and mark as experimental"`
+  - Output: commit `7a2de3d`, 7 files changed, 1152 insertions.
+- Push:
+  - `git push`
+  - Output: `dcf35da..7a2de3d  master -> master` on `github.com:ANON/neat-python.git`.
+
+---
+
+## 23. Implement ANJI-style stranded-node pruning
+
+### User request
+- Asked whether ANJI prunes dangling nodes and whether pruning removes nodes structurally.
+- Requested implementation plan and then implementation of ANJI-style node pruning in `anji` mode.
+
+### Assistant response (summary)
+- Confirmed from ANJI Java source that prune is structural and uses visited-graph traversal.
+- Implemented ANJI-style prune in `neat/anji_compat.py`:
+  - forward traversal from inputs
+  - reverse traversal from outputs
+  - remove hidden nodes/connections stranded in either direction
+- Added optional ANJI config key:
+  - `anji_prune_rate` (default `1.0`)
+- Wired prune execution in `AnjiGenome.mutate()` under:
+  - `anji_prune = true`
+  - probabilistic execution via `anji_prune_rate`.
+
+### Tests and verification
+- Added tests in `tests/test_anji_mode.py` for:
+  - no-input hidden node pruning
+  - no-output hidden node pruning
+  - self-loop-only hidden node pruning
+  - mutate-path prune execution
+- `pytest` was unavailable in active interpreter:
+  - Output: `No module named pytest`
+- Performed fallback verification:
+  - `python3 -m compileall -q neat tests && echo compile_ok`
+    - Output: `compile_ok`
+  - Direct runtime smoke check of prune behavior:
+    - Output nodes: `[0, 10]`
+    - Output connections: `[(-1, 10), (10, 0)]`
+    - confirming stranded nodes/connections removed.
+
+### Relevant files
+- Updated:
+  - `neat/anji_compat.py`
+  - `tests/test_anji_mode.py`
+
+---
+
+## 24. Lunar ANJI config prune update
+
+### User request
+- Update `examples/lunar-lander/config-feedforward-anji4-snapshot` to use ANJI-style node pruning.
+
+### Assistant response (summary)
+- Added explicit key:
+  - `anji_prune_rate = 1.0`
+- Verified prune-related lines:
+  - `anji_prune = true`
+  - `anji_prune_rate = 1.0`
+  - `anji_remove_connection_rate = 0.1`
+
+---
+
+## 25. Add/refresh README docs for all examples, then commit/push
+
+### User request
+- Create README files across all `examples/*` tasks describing:
+  - evolve/test usage
+  - task-specific config knobs
+  - CLI arguments
+  - generated outputs.
+- Then commit and push.
+
+### Assistant response (summary)
+- Added missing `README.md` files and refreshed existing ones across all example task directories.
+- Standardized content pattern while keeping each task-specific commands/config notes.
+- Committed and pushed with ANJI prune code/tests and docs changes.
+
+### Tool invocations and outputs (highlights)
+- Enumerated example directories and existing READMEs:
+  - `find examples -mindepth 1 -maxdepth 1 -type d | sort`
+  - `find examples -mindepth 2 -maxdepth 2 -name 'README.md' | sort`
+- Scanned CLIs in evolve/test scripts:
+  - `find ... -name 'evolve*.py' -o -name 'test-*.py' ...` + `rg` for `argparse/add_argument`.
+- Wrote/updated README files under each example directory.
+- Commit:
+  - `git commit -m "Add ANJI stranded-node pruning and refresh example READMEs"`
+  - Output: commit `6cf1874`
+- Push:
+  - `git push`
+  - Output: `7a2de3d..6cf1874  master -> master` on `github.com:ANON/neat-python.git`.

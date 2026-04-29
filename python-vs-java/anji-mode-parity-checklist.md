@@ -44,7 +44,7 @@ Status labels:
 | Add node mutation | Split connection; reuse node innovation mapping | Split connection with persistent split map in tracker | Approximate | Depends on local genome representation and node id allocation |
 | Classic single topological mutation | Optional single topology mutation per offspring | `anji_topology_mutation_classic` supported | Approximate | Probability composition mirrors ANJI intent |
 | Remove connection mutation | Multiple strategies (`SKEWED`, `ALL`, `SMALL`) | Uniform opportunity-based removal via `anji_remove_connection_rate` | Not Implemented | Strategy-specific ANJI removers are not ported |
-| Prune mutation | Explicit prune operator | `anji_prune` uses dangling-node pruning pass | Approximate | Not a separate forward/backward traversal operator |
+| Prune mutation | Explicit prune operator | `anji_prune` uses ANJI-style forward/backward visited-graph prune pass | Approximate | Traversal semantics now align closely; mutation-rate/operator scheduling details still differ |
 | Node mutation | ANJI neuron alleles largely fixed | Default off (`anji_mutate_nodes = false`) | Exact | Can be enabled for experimentation |
 | Node deletion operator | No direct node-delete operator | Not used in ANJI mode path | Exact | Consistent with ANJI operator set |
 
@@ -78,12 +78,11 @@ These keys are read in ANJI mode (all optional):
   - `anji_topology_mutation_classic`
   - `anji_mutate_nodes`
   - `anji_prune`
+  - `anji_prune_rate`
   - `anji_remove_connection_rate`
 
 ## H. Outstanding Gaps (Highest Priority)
 
 1. Port ANJI remove-connection strategies (`SKEWED`, `ALL`, `SMALL`) as first-class options.
-2. Implement ANJI-style prune operator traversal (forward/backward visited-graph prune), separate from current dangling-node prune.
-3. Tighten reproduction rounding/tie-break behavior for closer JGAP parity.
-4. Add golden parity tests against small deterministic ANJI-like scenarios (species allocation and mutation counts).
-
+2. Tighten reproduction rounding/tie-break behavior for closer JGAP parity.
+3. Add golden parity tests against small deterministic ANJI-like scenarios (species allocation and mutation counts).

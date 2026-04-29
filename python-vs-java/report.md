@@ -50,6 +50,7 @@ This report compares core NEAT algorithm behavior in:
   - remove-connection (multiple strategies)
   - prune mutation
 - ANJI also offers a classic single-topological-mutation mode (`topology.mutation.classic`) via `SingleTopologicalMutationOperator`.
+- In this fork’s `algorithm_mode = anji`, pruning now uses an ANJI-style stranded-allele pass (forward traversal from inputs + reverse traversal from outputs), with `anji_prune` and `anji_prune_rate` controls.
 
 ## 7. Innovation Number Handling
 

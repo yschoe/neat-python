@@ -46,7 +46,16 @@ This document summarizes fork-specific configuration keys related to ANJI compat
 - Type: boolean
 - Default: `true`
 - Meaning:
-  - Enables pruning of hidden nodes that cannot affect outputs after mutation.
+  - Enables ANJI-style stranded-node pruning after mutation.
+  - Prunes hidden nodes/connections that are unreachable from inputs or cannot reach outputs.
+
+### `anji_prune_rate`
+- Type: float in `[0.0, 1.0]`
+- Default: `1.0`
+- Meaning:
+  - Probability that the ANJI prune pass runs on a given mutation event.
+  - `1.0`: always prune when `anji_prune = true`.
+  - `0.0`: effectively disable prune execution while keeping `anji_prune` key present.
 
 ### `anji_remove_connection_rate`
 - Type: float

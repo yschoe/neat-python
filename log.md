@@ -43,3 +43,45 @@
   - Final-generation outputs in `exp-<config-filename>/` remain unchanged.
 - Updated all `test-feedforward.py` scripts to support:
   - `--snapshot <generation>` to load `snapshot-<generation:05d>` winners.
+
+## 2026-03-30
+
+- Added new experimental example: `examples/navigation/`, ported from `scratch/neat-navi/`.
+- Added standardized navigation example files:
+  - `evolve-feedforward.py`
+  - `test-feedforward.py`
+  - `visualize.py`
+  - `config-feedforward`
+  - `config-feedforward-anji`
+  - `README.md`
+- Matched repository conventions:
+  - optional config filename CLI argument
+  - runtime output directory `exp-<config-filename>/`
+  - snapshot saves via `snapshot_interval` into `snapshot-<generation:05d>/`
+  - test script supports `--snapshot <generation>`
+  - topology plots use BT layout and ranked input/output nodes
+- Updated `examples/README.md` to include `navigation`.
+- Updated `examples/navigation/README.md` with an explicit note that the example is still experimental.
+- Committed and pushed:
+  - `7a2de3d` (`Add navigation example and mark as experimental`) to `master`.
+
+## 2026-04-28
+
+- Implemented ANJI-style stranded-node pruning in `algorithm_mode = anji`:
+  - Added forward/reverse reachability prune pass in `neat/anji_compat.py`.
+  - Hidden nodes are structurally removed when unreachable from inputs or unable to reach outputs.
+  - Added `anji_prune_rate` (default `1.0`) to control prune-pass probability.
+- Added ANJI prune tests in `tests/test_anji_mode.py`:
+  - no-input hidden node pruning
+  - no-output hidden node pruning
+  - self-loop-only hidden node pruning
+- Updated LunarLander ANJI snapshot config:
+  - `examples/lunar-lander/config-feedforward-anji4-snapshot`
+  - explicitly sets `anji_prune=true` and `anji_prune_rate=1.0`
+- Added/updated README files for all example task directories under `examples/` with:
+  - evolve/test commands
+  - CLI arguments
+  - task-specific config knobs
+  - expected outputs/runtime directories
+- Committed and pushed:
+  - `6cf1874` (`Add ANJI stranded-node pruning and refresh example READMEs`) to `master`.
