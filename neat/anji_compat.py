@@ -59,6 +59,7 @@ class AnjiGenome(DefaultGenome):
             "yes",
             "on",
         )
+        cfg.anji_prune_rate = float(param_dict.get("anji_prune_rate", 1.0))
         cfg.anji_remove_connection_rate = float(
             param_dict.get("anji_remove_connection_rate", cfg.conn_delete_prob)
         )
@@ -101,7 +102,9 @@ class AnjiGenome(DefaultGenome):
                 ng.mutate(config)
 
         if getattr(config, "anji_prune", True):
-            self._prune_dangling_nodes(config)
+            prune_rate = max(0.0, min(1.0, float(getattr(config, "anji_prune_rate", 1.0))))
+            if random.random() < prune_rate:
+                self._prune_anji_stranded_alleles(config)
 
     def _candidate_connection_keys(self, config):
         possible_outputs = list(self.nodes)
@@ -202,6 +205,64 @@ class AnjiGenome(DefaultGenome):
                 to_delete.append(key)
         for key in to_delete:
             self.connections.pop(key, None)
+
+    def _find_anji_unvisited(self, config, is_forward):
+        """Return (unvisited_hidden_nodes, unvisited_enabled_connection_keys)."""
+        enabled_connection_keys = {
+            cg.key for cg in self.connections.values() if cg.enabled
+        }
+        unvisited_connections = set(enabled_connection_keys)
+
+        output_keys = set(config.output_keys)
+        input_keys = set(config.input_keys)
+        hidden_nodes = set(self.nodes.keys()) - output_keys - input_keys
+        unvisited_hidden_nodes = set(hidden_nodes)
+
+        current_nodes = set(config.input_keys if is_forward else config.output_keys)
+        next_nodes = set()
+        while unvisited_connections and current_nodes:
+            next_nodes.clear()
+            visited_now = []
+            for src, dst in list(unvisited_connections):
+                if (is_forward and src in current_nodes) or ((not is_forward) and dst in current_nodes):
+                    visited_now.append((src, dst))
+                    next_nodes.add(dst if is_forward else src)
+
+            if not visited_now:
+                break
+
+            for key in visited_now:
+                unvisited_connections.discard(key)
+
+            unvisited_hidden_nodes -= next_nodes
+            current_nodes = set(next_nodes)
+
+        return unvisited_hidden_nodes, unvisited_connections
+
+    def _prune_anji_stranded_alleles(self, config):
+        """ANJI-style prune: remove nodes/connections stranded in either direction."""
+        fwd_unvisited_nodes, fwd_unvisited_connections = self._find_anji_unvisited(
+            config, is_forward=True
+        )
+        rev_unvisited_nodes, rev_unvisited_connections = self._find_anji_unvisited(
+            config, is_forward=False
+        )
+
+        stranded_nodes = set(fwd_unvisited_nodes) | set(rev_unvisited_nodes)
+        stranded_connections = (
+            set(fwd_unvisited_connections) | set(rev_unvisited_connections)
+        )
+
+        if not stranded_nodes and not stranded_connections:
+            return
+
+        for node_key in stranded_nodes:
+            self.nodes.pop(node_key, None)
+
+        for conn_key in list(self.connections.keys()):
+            src, dst = conn_key
+            if conn_key in stranded_connections or src in stranded_nodes or dst in stranded_nodes:
+                self.connections.pop(conn_key, None)
 
 
 class AnjiSpeciesSet(DefaultSpeciesSet):

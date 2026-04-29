@@ -1,26 +1,43 @@
-## XOR examples ##
+# XOR Examples
 
-The scripts in this directory show how to evolve networks that implement the 2-input XOR function.  These XOR examples
-are intended to be "Hello World" style samples, so that you can see the minimal amount of code you need to write in order
-to make use of *neat-python*. 
+Collection of XOR tasks showing minimal, feed-forward, spiking, parallel, and reproducible workflows.
 
-These simple examples are sometimes also useful as a debugging tool for *neat-python*, because you can step through the 
-NEAT-specific code and watch what happens without getting swamped by the complexity of the networks and/or application code.
+## Evolve
 
-Note that there is a significant amount of duplication between these scripts, and this is intentional.  The goal is to 
-make it easier to see what the example is doing, without making the user dig through a bunch of code that is not 
-directly related to the NEAT library usage.
+Main feed-forward:
+```bash
+cd examples/xor
+python evolve-feedforward.py [config_filename]
+```
 
-## The examples ##
+Other variants:
+```bash
+python evolve-minimal.py [config_filename]
+python evolve-feedforward-partial.py [config_filename]
+python evolve-feedforward-parallel.py [config_filename]
+python evolve-feedforward-reproducible.py [config_filename]
+python evolve-spiking.py [config_filename]
+```
 
-* `evolve-minimal.py` shows how to evolve a feed-forward neural network with sigmoidal neurons; this example has all 
-unnecessary complications removed. 
+Configs include:
+- `config-feedforward`, `config-feedforward-anji`
+- `config-feedforward-partial`, `config-feedforward-partial-anji`
+- `config-spiking`, `config-spiking-anji`
 
-* `evolve-feedforward.py` shows how to evolve a feed-forward neural network with sigmoidal neurons. This is
-essentially the evolve-minimal example with prettier output and better coding practices.  
+## Test
 
-* `evolve-feedforward-parallel.py` evolves the same type of network as `evolve-feedforward.py`, but this example shows
-    how you can make use of multiple processors to evaluate networks in parallel.  
+No separate `test-*.py`; scripts print winner outputs on XOR truth table.
 
-* `evolve-spiking.py` evolves a network of spiking neurons, using Izhikevich's neuron model from ["Simple model of spiking 
-neurons"](http://www.dis.uniroma1.it/~gori/Sito_GG/Modellistica_files/2003%20Net.pdf) in 2003.
+## Task-specific config knobs
+
+- tiny topology (`num_inputs=2`, `num_outputs=1`)
+- mutation/reproduction rates for quick convergence
+- `snapshot_interval` for periodic artifact saves
+
+## Outputs
+
+Runtime dir: `exp-<config-filename>/`
+- winner pickle
+- fitness/speciation plots
+- network dot/svg files
+- snapshots

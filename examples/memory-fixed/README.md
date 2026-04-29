@@ -1,8 +1,32 @@
-## NOTES ##
+# Memory Fixed-Length Sequence
 
-This example currently does not work as intended. 
+Experimental task: evolve a network to reproduce a fixed-length binary sequence.
 
-## Fixed-length Sequence Memory Evolution ##
+## Evolve
 
-`evolve.py` Generates networks to reproduce a fixed-length sequence of binary inputs.
+```bash
+cd examples/memory-fixed
+python evolve.py [config_filename]
+```
 
+Configs:
+- `config`
+- `config-anji`
+
+## Test
+
+No separate `test-*.py`; inspect fitness and winner behavior from run artifacts.
+
+## Task-specific config knobs
+
+- sequence/task parameters embedded in script
+- network type and recurrence options in config
+- `fitness_threshold`, `pop_size`, `snapshot_interval`
+
+## Outputs
+
+Runtime dir: `exp-<config-filename>/`
+- winner pickle
+- fitness/speciation plots
+- network dot/svg
+- snapshots

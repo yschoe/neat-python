@@ -1,53 +1,40 @@
 # Navigation example
 
 This example evolves a feed-forward controller for a 2D navigation task.
-An agent must move from a random start to a random target in a square arena.
+An agent moves from random start to random target in a square arena.
 
 > Note: this example is still in an experimental stage and may change.
 
-The controller outputs:
-
-- `thrust`: move forward when positive
-- `turn`: rotate heading left/right
-
-Optional barrier mode can place an obstacle line segment between start and target.
-
-## Run evolution
+## Evolve
 
 ```bash
 cd examples/navigation
-python evolve-feedforward.py
+python evolve-feedforward.py [config_filename] [--barrier-length L] [--generations N]
 ```
 
-Use ANJI mode config:
+Configs:
+- `config-feedforward`
+- `config-feedforward-anji`
+
+## Test
 
 ```bash
-python evolve-feedforward.py config-feedforward-anji
+python test-feedforward.py [config_filename] [genome_path] [--snapshot N] [--barrier-length L] [--episodes N] [--no-render]
 ```
 
-Optional barrier:
+## Task-specific config knobs
 
-```bash
-python evolve-feedforward.py config-feedforward --barrier-length 100
-```
+- `num_inputs=3` (`distance`, `angle`, `barrier_in_path`)
+- `num_outputs=2` (`thrust`, `turn`)
+- `snapshot_interval`
+- ANJI mode knobs in `config-feedforward-anji`
 
-Results are written to:
+## Outputs
 
-- `exp-config-feedforward/`
-- `exp-config-feedforward-anji/`
-
-Snapshots are saved at `snapshot_interval` generations:
-
-- `exp-<config-filename>/snapshot-00100/`, etc.
-
-## Test winner
-
-```bash
-python test-feedforward.py
-```
-
-With a specific snapshot:
-
-```bash
-python test-feedforward.py config-feedforward --snapshot 100
-```
+Runtime dir: `exp-<config-filename>/`
+- winner pickle
+- fitness/speciation plots
+- network dot/svg
+- `winner-trajectory.png`
+- `test-episode-*.png` from testing
+- `snapshot-xxxxx/`
