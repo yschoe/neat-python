@@ -24,6 +24,8 @@ TARGET_RADIUS = 10.0
 AGENT_SPEED = 3.0
 TURN_SCALE = 0.2
 EVAL_EPISODES = 5
+STEP_PENALTY_SUCCESS = 0.5
+STEP_PENALTY_ALL = 0.0
 
 
 class Barrier:
@@ -49,9 +51,12 @@ class Barrier:
         self.width = 5.0
 
     def check_collision(self, x, y):
+        return self.distance_to_point(x, y) < self.width
+
+    def distance_to_point(self, x, y):
         line_len = math.hypot(self.x2 - self.x1, self.y2 - self.y1)
         if line_len < 1e-9:
-            return False
+            return 1e9
 
         dir_x = (self.x2 - self.x1) / line_len
         dir_y = (self.y2 - self.y1) / line_len
@@ -62,15 +67,7 @@ class Barrier:
 
         near_x = self.x1 + t * dir_x
         near_y = self.y1 + t * dir_y
-        return math.hypot(x - near_x, y - near_y) < self.width
-
-    def in_path(self, ax, ay, tx, ty):
-        barrier_dx = self.x2 - self.x1
-        barrier_dy = self.y2 - self.y1
-        path_dx = tx - ax
-        path_dy = ty - ay
-        cross = barrier_dx * path_dy - barrier_dy * path_dx
-        return abs(cross) > 1e-6
+        return math.hypot(x - near_x, y - near_y)
 
 
 class Agent:
@@ -96,6 +93,26 @@ class Agent:
             self.x, self.y = old_x, old_y
 
 
+def create_network(genome, config):
+    if config.genome_config.feed_forward:
+        return neat.nn.FeedForwardNetwork.create(genome, config)
+    return neat.nn.RecurrentNetwork.create(genome, config)
+
+
+def resolve_barrier_length(config, cli_barrier_length):
+    if cli_barrier_length is not None:
+        return max(0.0, float(cli_barrier_length))
+
+    cfg_len = float(getattr(config.genome_config, "barrier_length", 0.0))
+    use_barrier = str(getattr(config.genome_config, "barrier_in_path", "true")).lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    return max(0.0, cfg_len) if use_barrier else 0.0
+
+
 def build_inputs(agent, target_x, target_y, barrier, expected_inputs):
     dx = target_x - agent.x
     dy = target_y - agent.y
@@ -111,14 +128,22 @@ def build_inputs(agent, target_x, target_y, barrier, expected_inputs):
 
     inputs = [distance, angle_norm]
     if expected_inputs >= 3:
-        in_way = 1.0 if (barrier is not None and barrier.in_path(agent.x, agent.y, target_x, target_y)) else 0.0
-        inputs.append(in_way)
+        # Barrier proximity sensor: active only when very close to barrier.
+        near_barrier = 1.0 if (barrier is not None and barrier.distance_to_point(agent.x, agent.y) <= 5.0) else 0.0
+        inputs.append(near_barrier)
     while len(inputs) < expected_inputs:
         inputs.append(0.0)
     return inputs[:expected_inputs]
 
 
-def run_episode(net, expected_inputs, barrier_length=0, rng=None):
+def run_episode(
+    net,
+    expected_inputs,
+    barrier_length=0,
+    rng=None,
+    step_penalty_success=STEP_PENALTY_SUCCESS,
+    step_penalty_all=STEP_PENALTY_ALL,
+):
     if rng is None:
         rng = random
 
@@ -128,6 +153,8 @@ def run_episode(net, expected_inputs, barrier_length=0, rng=None):
     target_y = rng.uniform(0.0, ARENA_SIZE - 1.0)
 
     agent = Agent(start_x, start_y)
+    if hasattr(net, "reset"):
+        net.reset()
     barrier = None
     if barrier_length and barrier_length > 0:
         barrier = Barrier(agent.x, agent.y, target_x, target_y, barrier_length)
@@ -154,9 +181,10 @@ def run_episode(net, expected_inputs, barrier_length=0, rng=None):
     progress = max(0.0, initial_distance - final_distance)
 
     if reached:
-        fitness = 1000.0 - 0.5 * step
+        fitness = 1000.0 - float(step_penalty_success) * step
     else:
         fitness = progress * 2.0 + max(0.0, 100.0 - 0.2 * final_distance)
+    fitness -= float(step_penalty_all) * step
 
     return {
         "fitness": fitness,
@@ -212,20 +240,44 @@ def save_trajectory_plot(path, episode):
     plt.close(fig)
 
 
-def eval_genome(genome, config, barrier_length=0):
-    net = neat.nn.FeedForwardNetwork.create(genome, config)
+def eval_genome(
+    genome,
+    config,
+    barrier_length=0,
+    step_penalty_success=STEP_PENALTY_SUCCESS,
+    step_penalty_all=STEP_PENALTY_ALL,
+):
+    net = create_network(genome, config)
     expected_inputs = len(config.genome_config.input_keys)
 
     scores = []
     for _ in range(EVAL_EPISODES):
-        result = run_episode(net, expected_inputs, barrier_length=barrier_length)
+        result = run_episode(
+            net,
+            expected_inputs,
+            barrier_length=barrier_length,
+            step_penalty_success=step_penalty_success,
+            step_penalty_all=step_penalty_all,
+        )
         scores.append(result["fitness"])
     return sum(scores) / len(scores)
 
 
-def eval_genomes(genomes, config, barrier_length=0):
+def eval_genomes(
+    genomes,
+    config,
+    barrier_length=0,
+    step_penalty_success=STEP_PENALTY_SUCCESS,
+    step_penalty_all=STEP_PENALTY_ALL,
+):
     for genome_id, genome in genomes:
-        genome.fitness = eval_genome(genome, config, barrier_length=barrier_length)
+        genome.fitness = eval_genome(
+            genome,
+            config,
+            barrier_length=barrier_length,
+            step_penalty_success=step_penalty_success,
+            step_penalty_all=step_penalty_all,
+        )
 
 
 def get_node_names(config):
@@ -237,7 +289,17 @@ def get_node_names(config):
     return node_names
 
 
-def save_run_artifacts(output_dir, config, genome, stats, node_names, barrier_length, view):
+def save_run_artifacts(
+    output_dir,
+    config,
+    genome,
+    stats,
+    node_names,
+    barrier_length,
+    view,
+    step_penalty_success=STEP_PENALTY_SUCCESS,
+    step_penalty_all=STEP_PENALTY_ALL,
+):
     os.makedirs(output_dir, exist_ok=True)
 
     with open(os.path.join(output_dir, "winner-feedforward.pickle"), "wb") as f:
@@ -271,20 +333,38 @@ def save_run_artifacts(output_dir, config, genome, stats, node_names, barrier_le
     )
 
     # Save a deterministic rollout snapshot image for quick policy inspection.
-    net = neat.nn.FeedForwardNetwork.create(genome, config)
+    net = create_network(genome, config)
     expected_inputs = len(config.genome_config.input_keys)
     rng = random.Random(12345)
-    episode = run_episode(net, expected_inputs, barrier_length=barrier_length, rng=rng)
+    episode = run_episode(
+        net,
+        expected_inputs,
+        barrier_length=barrier_length,
+        rng=rng,
+        step_penalty_success=step_penalty_success,
+        step_penalty_all=step_penalty_all,
+    )
     save_trajectory_plot(os.path.join(output_dir, "winner-trajectory.png"), episode)
 
 
 class SnapshotReporter(neat.reporting.BaseReporter):
-    def __init__(self, snapshot_interval, config, stats, node_names, barrier_length):
+    def __init__(
+        self,
+        snapshot_interval,
+        config,
+        stats,
+        node_names,
+        barrier_length,
+        step_penalty_success,
+        step_penalty_all,
+    ):
         self.snapshot_interval = max(1, int(snapshot_interval))
         self.config = config
         self.stats = stats
         self.node_names = node_names
         self.barrier_length = barrier_length
+        self.step_penalty_success = float(step_penalty_success)
+        self.step_penalty_all = float(step_penalty_all)
         self.generation = 0
 
     def start_generation(self, generation):
@@ -304,6 +384,8 @@ class SnapshotReporter(neat.reporting.BaseReporter):
             self.node_names,
             self.barrier_length,
             view=False,
+            step_penalty_success=self.step_penalty_success,
+            step_penalty_all=self.step_penalty_all,
         )
         print("\n" + "=" * 72)
         print(
@@ -313,7 +395,13 @@ class SnapshotReporter(neat.reporting.BaseReporter):
         print("=" * 72 + "\n")
 
 
-def run(config_file, barrier_length=0, generations=400):
+def run(
+    config_file,
+    barrier_length=None,
+    generations=400,
+    step_penalty_success=STEP_PENALTY_SUCCESS,
+    step_penalty_all=STEP_PENALTY_ALL,
+):
     local_dir = os.path.dirname(__file__)
     config_basename = os.path.basename(config_file)
     run_dir = os.path.join(local_dir, f"exp-{config_basename}")
@@ -326,6 +414,7 @@ def run(config_file, barrier_length=0, generations=400):
         neat.DefaultStagnation,
         config_file,
     )
+    barrier_length = resolve_barrier_length(config, barrier_length)
 
     previous_cwd = os.getcwd()
     os.chdir(run_dir)
@@ -343,11 +432,18 @@ def run(config_file, barrier_length=0, generations=400):
                 stats,
                 node_names,
                 barrier_length,
+                step_penalty_success,
+                step_penalty_all,
             )
         )
         p.add_reporter(neat.Checkpointer(10))
 
-        eval_fn = partial(eval_genome, barrier_length=barrier_length)
+        eval_fn = partial(
+            eval_genome,
+            barrier_length=barrier_length,
+            step_penalty_success=step_penalty_success,
+            step_penalty_all=step_penalty_all,
+        )
         pe = neat.ParallelEvaluator(multiprocessing.cpu_count(), eval_fn)
         winner = p.run(pe.evaluate, generations)
 
@@ -361,6 +457,8 @@ def run(config_file, barrier_length=0, generations=400):
             node_names,
             barrier_length,
             view=True,
+            step_penalty_success=step_penalty_success,
+            step_penalty_all=step_penalty_all,
         )
     finally:
         os.chdir(previous_cwd)
@@ -381,14 +479,26 @@ if __name__ == "__main__":
     parser.add_argument(
         "--barrier-length",
         type=float,
-        default=0.0,
-        help="Optional barrier length; 0 disables barriers.",
+        default=None,
+        help="Optional barrier length override; if omitted, read from config (if present).",
     )
     parser.add_argument(
         "--generations",
         type=int,
         default=400,
         help="Maximum number of generations to run.",
+    )
+    parser.add_argument(
+        "--step-penalty-success",
+        type=float,
+        default=STEP_PENALTY_SUCCESS,
+        help="Penalty multiplier on steps for successful episodes (default: 0.5).",
+    )
+    parser.add_argument(
+        "--step-penalty-all",
+        type=float,
+        default=STEP_PENALTY_ALL,
+        help="Additional penalty multiplier on steps for all episodes (default: 0.0).",
     )
     args = parser.parse_args()
 
@@ -402,4 +512,6 @@ if __name__ == "__main__":
         config_path,
         barrier_length=args.barrier_length,
         generations=args.generations,
+        step_penalty_success=args.step_penalty_success,
+        step_penalty_all=args.step_penalty_all,
     )

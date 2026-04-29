@@ -19,6 +19,26 @@ AGENT_SPEED = 3.0
 TURN_SCALE = 0.2
 
 
+def create_network(genome, config):
+    if config.genome_config.feed_forward:
+        return neat.nn.FeedForwardNetwork.create(genome, config)
+    return neat.nn.RecurrentNetwork.create(genome, config)
+
+
+def resolve_barrier_length(config, cli_barrier_length):
+    if cli_barrier_length is not None:
+        return max(0.0, float(cli_barrier_length))
+
+    cfg_len = float(getattr(config.genome_config, "barrier_length", 0.0))
+    use_barrier = str(getattr(config.genome_config, "barrier_in_path", "true")).lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    return max(0.0, cfg_len) if use_barrier else 0.0
+
+
 class Barrier:
     def __init__(self, start_x, start_y, target_x, target_y, length=100.0):
         mid_x = 0.5 * (start_x + target_x)
@@ -40,9 +60,12 @@ class Barrier:
         self.width = 5.0
 
     def check_collision(self, x, y):
+        return self.distance_to_point(x, y) < self.width
+
+    def distance_to_point(self, x, y):
         line_len = math.hypot(self.x2 - self.x1, self.y2 - self.y1)
         if line_len < 1e-9:
-            return False
+            return 1e9
 
         dir_x = (self.x2 - self.x1) / line_len
         dir_y = (self.y2 - self.y1) / line_len
@@ -52,15 +75,7 @@ class Barrier:
         t = max(0.0, min(line_len, dir_x * rel_x + dir_y * rel_y))
         near_x = self.x1 + t * dir_x
         near_y = self.y1 + t * dir_y
-        return math.hypot(x - near_x, y - near_y) < self.width
-
-    def in_path(self, ax, ay, tx, ty):
-        barrier_dx = self.x2 - self.x1
-        barrier_dy = self.y2 - self.y1
-        path_dx = tx - ax
-        path_dy = ty - ay
-        cross = barrier_dx * path_dy - barrier_dy * path_dx
-        return abs(cross) > 1e-6
+        return math.hypot(x - near_x, y - near_y)
 
 
 class Agent:
@@ -98,11 +113,85 @@ def build_inputs(agent, target_x, target_y, barrier, expected_inputs):
 
     inputs = [distance, angle_norm]
     if expected_inputs >= 3:
-        in_way = 1.0 if (barrier is not None and barrier.in_path(agent.x, agent.y, target_x, target_y)) else 0.0
-        inputs.append(in_way)
+        # Barrier proximity sensor: active only when very close to barrier.
+        near_barrier = 1.0 if (barrier is not None and barrier.distance_to_point(agent.x, agent.y) <= 5.0) else 0.0
+        inputs.append(near_barrier)
     while len(inputs) < expected_inputs:
         inputs.append(0.0)
     return inputs[:expected_inputs]
+
+
+def _latest_values(net):
+    # FeedForwardNetwork stores one dict; RecurrentNetwork stores two alternating dicts.
+    if hasattr(net, "active") and hasattr(net, "values") and isinstance(net.values, list):
+        return net.values[net.active]
+    if hasattr(net, "values") and isinstance(net.values, dict):
+        return net.values
+    return {}
+
+
+def _activity_rows(config, genome, net, current_inputs):
+    values = _latest_values(net)
+    input_keys = list(config.genome_config.input_keys)
+    output_keys = list(config.genome_config.output_keys)
+    hidden_keys = sorted(
+        [k for k in genome.nodes.keys() if k not in set(output_keys)]
+    )
+
+    input_vals = {
+        k: (current_inputs[idx] if idx < len(current_inputs) else 0.0)
+        for idx, k in enumerate(input_keys)
+    }
+    hidden_vals = {k: values.get(k, 0.0) for k in hidden_keys}
+    output_vals = {k: values.get(k, 0.0) for k in output_keys}
+    return output_vals, hidden_vals, input_vals
+
+
+def _value_color(v):
+    # Map roughly [-1, 1] to red/blue with white near zero.
+    x = max(-1.0, min(1.0, float(v)))
+    if x >= 0:
+        r = 255
+        g = int(255 * (1.0 - x))
+        b = int(255 * (1.0 - x))
+    else:
+        r = int(255 * (1.0 + x))
+        g = int(255 * (1.0 + x))
+        b = 255
+    return (r, g, b)
+
+
+def _draw_activity_panel(surface, rows):
+    import pygame
+
+    width, height = surface.get_size()
+    surface.fill((22, 22, 22))
+    row_names = ["outputs", "hidden", "inputs"]
+    y_positions = [height * 0.18, height * 0.5, height * 0.82]
+
+    try:
+        font = pygame.font.SysFont("monospace", 14)
+    except Exception:
+        font = None
+
+    for row_name, row_vals, y in zip(row_names, rows, y_positions):
+        keys = list(row_vals.keys())
+        n = max(1, len(keys))
+        for i, key in enumerate(keys):
+            x = int((i + 1) * width / (n + 1))
+            v = row_vals[key]
+            color = _value_color(v)
+            pygame.draw.circle(surface, color, (x, int(y)), 13)
+            pygame.draw.circle(surface, (240, 240, 240), (x, int(y)), 13, 1)
+            if font is not None:
+                label = font.render(str(key), True, (220, 220, 220))
+                valtxt = font.render(f"{v:+.2f}", True, (200, 200, 200))
+                surface.blit(label, (x - label.get_width() // 2, int(y) + 18))
+                surface.blit(valtxt, (x - valtxt.get_width() // 2, int(y) - 30))
+
+        if font is not None:
+            title = font.render(row_name, True, (180, 180, 180))
+            surface.blit(title, (8, int(y) - 8))
 
 
 def draw_episode(frame_path, episode):
@@ -146,6 +235,8 @@ def run_episode(net, expected_inputs, barrier_length=0.0, seed=None):
     target_y = rng.uniform(0.0, ARENA_SIZE - 1.0)
 
     agent = Agent(start_x, start_y)
+    if hasattr(net, "reset"):
+        net.reset()
     barrier = None
     if barrier_length and barrier_length > 0:
         barrier = Barrier(agent.x, agent.y, target_x, target_y, barrier_length)
@@ -240,6 +331,104 @@ def render_episode(episode):
     pygame.quit()
 
 
+def render_episode_with_activity(net, config, genome, expected_inputs, barrier_length=0.0, seed=None):
+    try:
+        import pygame
+    except ImportError:
+        print("pygame is not installed; skipping interactive render.")
+        return run_episode(net, expected_inputs, barrier_length=barrier_length, seed=seed)
+
+    rng = random.Random(seed)
+    start_x = rng.uniform(0.0, ARENA_SIZE - 1.0)
+    start_y = rng.uniform(0.0, ARENA_SIZE - 1.0)
+    target_x = rng.uniform(0.0, ARENA_SIZE - 1.0)
+    target_y = rng.uniform(0.0, ARENA_SIZE - 1.0)
+
+    agent = Agent(start_x, start_y)
+    if hasattr(net, "reset"):
+        net.reset()
+    barrier = None
+    if barrier_length and barrier_length > 0:
+        barrier = Barrier(agent.x, agent.y, target_x, target_y, barrier_length)
+
+    pygame.init()
+    panel_width = 360
+    screen = pygame.display.set_mode((ARENA_SIZE + panel_width, ARENA_SIZE))
+    pygame.display.set_caption("Navigation rollout + neural activity")
+    clock = pygame.time.Clock()
+    arena_surface = pygame.Surface((ARENA_SIZE, ARENA_SIZE))
+    panel_surface = pygame.Surface((panel_width, ARENA_SIZE))
+
+    trajectory = [(agent.x, agent.y)]
+    reached = False
+    step = 0
+    running = True
+    hold_until = None
+    current_inputs = [0.0] * expected_inputs
+
+    while running and step < MAX_STEPS:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+
+        current_inputs = build_inputs(agent, target_x, target_y, barrier, expected_inputs)
+        outputs = net.activate(current_inputs)
+        thrust = outputs[0] if len(outputs) > 0 else 0.0
+        turn = outputs[1] if len(outputs) > 1 else 0.0
+        agent.step(thrust, turn, barrier)
+        trajectory.append((agent.x, agent.y))
+        step += 1
+
+        if math.hypot(agent.x - target_x, agent.y - target_y) < TARGET_RADIUS:
+            reached = True
+            if hold_until is None:
+                hold_until = time.time() + 2.0
+
+        arena_surface.fill((0, 0, 0))
+        pygame.draw.circle(arena_surface, (0, 220, 0), (int(target_x), int(target_y)), int(TARGET_RADIUS))
+        if barrier is not None:
+            pygame.draw.line(
+                arena_surface,
+                (255, 255, 255),
+                (int(barrier.x1), int(barrier.y1)),
+                (int(barrier.x2), int(barrier.y2)),
+                int(max(1.0, barrier.width)),
+            )
+        if len(trajectory) > 1:
+            pygame.draw.lines(
+                arena_surface,
+                (100, 100, 255),
+                False,
+                [(int(p[0]), int(p[1])) for p in trajectory],
+                2,
+            )
+        pygame.draw.circle(arena_surface, (255, 60, 60), (int(agent.x), int(agent.y)), 7)
+
+        out_vals, hid_vals, in_vals = _activity_rows(config, genome, net, current_inputs)
+        _draw_activity_panel(panel_surface, [out_vals, hid_vals, in_vals])
+
+        screen.blit(arena_surface, (0, 0))
+        screen.blit(panel_surface, (ARENA_SIZE, 0))
+        pygame.display.flip()
+        clock.tick(60)
+
+        if hold_until is not None and time.time() >= hold_until:
+            break
+
+    pygame.quit()
+
+    final_distance = math.hypot(agent.x - target_x, agent.y - target_y)
+    return {
+        "start": (start_x, start_y),
+        "target": (target_x, target_y),
+        "barrier": barrier,
+        "trajectory": trajectory,
+        "reached": reached,
+        "steps": step,
+        "final_distance": final_distance,
+    }
+
+
 def load_and_test(genome_path, config_path, barrier_length=0.0, episodes=3, render=True):
     config = neat.Config(
         neat.DefaultGenome,
@@ -255,16 +444,27 @@ def load_and_test(genome_path, config_path, barrier_length=0.0, episodes=3, rend
     print("Loaded genome:")
     print(genome)
 
-    net = neat.nn.FeedForwardNetwork.create(genome, config)
+    barrier_length = resolve_barrier_length(config, barrier_length)
+    net = create_network(genome, config)
     expected_inputs = len(config.genome_config.input_keys)
 
     for episode_idx in range(episodes):
-        episode = run_episode(
-            net,
-            expected_inputs,
-            barrier_length=barrier_length,
-            seed=episode_idx + 1,
-        )
+        if render:
+            episode = render_episode_with_activity(
+                net,
+                config,
+                genome,
+                expected_inputs,
+                barrier_length=barrier_length,
+                seed=episode_idx + 1,
+            )
+        else:
+            episode = run_episode(
+                net,
+                expected_inputs,
+                barrier_length=barrier_length,
+                seed=episode_idx + 1,
+            )
         status = "reached" if episode["reached"] else "not reached"
         print(
             f"Episode {episode_idx + 1}: {status}, steps={episode['steps']}, "
@@ -275,8 +475,6 @@ def load_and_test(genome_path, config_path, barrier_length=0.0, episodes=3, rend
         draw_episode(frame_name, episode)
         print(f"Saved trajectory image: {os.path.abspath(frame_name)}")
 
-        if render:
-            render_episode(episode)
 
 
 def resolve_run_dir_and_genome(local_dir, config_path, genome_path=None, snapshot=None):
@@ -327,8 +525,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--barrier-length",
         type=float,
-        default=0.0,
-        help="Optional barrier length; 0 disables barriers.",
+        default=None,
+        help="Optional barrier length override; if omitted, read from config (if present).",
     )
     parser.add_argument(
         "--episodes",

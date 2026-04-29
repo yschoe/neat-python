@@ -85,3 +85,30 @@
   - expected outputs/runtime directories
 - Committed and pushed:
   - `6cf1874` (`Add ANJI stranded-node pruning and refresh example READMEs`) to `master`.
+
+## 2026-04-29
+
+- Navigation example ongoing progress (`examples/navigation/`):
+  - Fixed config/script consistency for recurrent experiments:
+    - feed-forward example ANJI configs corrected to `feed_forward=true` where appropriate
+    - `config-rnn-anji` switched to `feed_forward=False`
+  - Updated navigation evolve/test scripts to honor config network type:
+    - `feed_forward=True` -> `FeedForwardNetwork`
+    - `feed_forward=False` -> `RecurrentNetwork`
+  - Added recurrent-state reset per episode in navigation testing/evaluation.
+  - Added config-driven barrier defaults with CLI override:
+    - config keys `barrier_in_path`, `barrier_length`
+    - `--barrier-length` overrides when provided
+  - Added real-time neural activity visualization in navigation test render:
+    - top row output neurons, middle hidden neurons, bottom input neurons
+    - no connectivity display
+  - Updated barrier sensor semantics:
+    - third input is now a near-contact binary sensor (`~5 px` threshold), mostly 0 when far
+  - Added step-penalty tuning knobs for navigation evolve:
+    - `--step-penalty-success`
+    - `--step-penalty-all`
+- Documentation updates:
+  - Updated navigation README for RNN mode, activity panel, barrier semantics, and new fitness-penalty knobs.
+  - Updated session records in `log.md` / `transcript.md`.
+- Status:
+  - Navigation work remains in-progress; further tuning/validation is planned.

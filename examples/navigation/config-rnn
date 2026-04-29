@@ -1,22 +1,22 @@
 [NEAT]
 fitness_criterion     = max
-fitness_threshold     = 987.0
+fitness_threshold     = 1000.0
 snapshot_interval     = 100
 pop_size              = 150
 reset_on_extinction   = False
 
 no_fitness_termination         = False
 
-algorithm_mode        = anji
-
 [DefaultGenome]
+barrier_in_path = true
+barrier_length = 100
 # Inputs: distance to target, relative target angle, barrier-in-path flag.
 num_inputs              = 3
 num_hidden              = 0
 # Outputs: thrust, turn.
 num_outputs             = 2
 initial_connection      = full_direct
-feed_forward            = True
+feed_forward            = false
 compatibility_disjoint_coefficient = 1.0
 compatibility_weight_coefficient   = 0.5
 conn_add_prob           = 0.5
@@ -62,12 +62,6 @@ structural_mutation_surer = default
 enabled_rate_to_true_add = 0.0
 enabled_rate_to_false_add = 0.0
 
-# ANJI compatibility knobs
-anji_topology_mutation_classic = false
-anji_mutate_nodes              = false
-anji_prune                     = true
-anji_remove_connection_rate    = 0.1
-
 [DefaultSpeciesSet]
 compatibility_threshold = 3.0
 
@@ -81,10 +75,3 @@ elitism            = 2
 survival_threshold = 0.1
 
 min_species_size               = 2
-
-# ANJI compatibility knobs
-anji_survival_rate            = 0.1
-anji_elitism                  = true
-anji_elitism_min_species_size = 6
-anji_clone_slice              = auto
-anji_crossover_slice          = auto

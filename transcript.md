@@ -606,3 +606,65 @@ This transcript captures the main user requests, assistant responses, tool invoc
 - Push:
   - `git push`
   - Output: `7a2de3d..6cf1874  master -> master` on `github.com:ANON/neat-python.git`.
+
+---
+
+## 26. Navigation recurrent behavior investigation and in-progress fixes
+
+### User request
+- Reported odd recurrent behavior and asked for investigation.
+- Asked whether issues exist beyond config filename/flag mismatch.
+- Requested fixes to navigation implementation and iterative updates:
+  - recurrent support correctness
+  - live neural activity visualization
+  - barrier sensor semantics
+  - stronger step penalties
+
+### Assistant response (summary)
+- Identified config/script mismatch risks and patched affected configs.
+- Confirmed `examples/navigation` had implementation gaps for true RNN usage.
+- Patched navigation evolve/test scripts to select network type based on config (`feed_forward`).
+- Added recurrent-state reset per episode.
+- Added config-based barrier defaults with CLI override.
+- Added real-time neural activity panel in navigation test render.
+- Changed barrier third input semantics from broad geometric flag to near-contact binary sensor (~5 px).
+- Added fitness step-penalty CLI controls in navigation evolve script.
+
+### Navigation changes (highlights)
+- `examples/navigation/evolve-feedforward.py`
+  - network auto-selection:
+    - `FeedForwardNetwork` when `feed_forward=True`
+    - `RecurrentNetwork` when `feed_forward=False`
+  - barrier defaults from config (`barrier_in_path`, `barrier_length`) with CLI override
+  - recurrent net reset at episode start
+  - new CLI:
+    - `--step-penalty-success`
+    - `--step-penalty-all`
+- `examples/navigation/test-feedforward.py`
+  - same network auto-selection and barrier-default behavior
+  - recurrent net reset at episode start
+  - new real-time activity panel while rendering:
+    - outputs top row, hidden middle row, inputs bottom row
+    - no connectivity drawing
+  - barrier third input now near-contact binary sensor
+- `examples/navigation/README.md`
+  - updated to describe RNN mode, activity panel, barrier semantics, and step-penalty options.
+
+### Tool invocations and outputs (highlights)
+- Source and config audits across `neat/` and `examples/` with `rg/sed`.
+- Navigation config parse smoke check:
+  - `config-feedforward OK`
+  - `config-rnn OK`
+  - `config-feedforward-anji OK`
+  - `config-rnn-anji OK`
+- Network type smoke check after patch:
+  - `config-feedforward -> FeedForwardNetwork`
+  - `config-rnn -> RecurrentNetwork`
+  - `config-feedforward-anji -> FeedForwardNetwork`
+  - `config-rnn-anji -> RecurrentNetwork`
+- Compile checks:
+  - `python3 -m compileall -q examples/navigation/...`
+  - Output: `compile_ok`
+
+### Status note
+- This navigation work is explicitly ongoing; user asked to continue later if needed.
