@@ -9,7 +9,7 @@ An agent moves from random start to random target in a square arena.
 
 ```bash
 cd examples/navigation
-python evolve-feedforward.py [config_filename] [--barrier-length L] [--generations N] [--step-penalty-success P] [--step-penalty-all Q]
+python evolve-feedforward.py [config_filename] [--barrier-length L] [--angled-barrier] [--disable-barrier-sensor] [--generations N] [--step-penalty-success P] [--step-penalty-all Q]
 ```
 
 Configs:
@@ -25,7 +25,7 @@ The script chooses network type from config:
 ## Test
 
 ```bash
-python test-feedforward.py [config_filename] [genome_path] [--snapshot N] [--barrier-length L] [--episodes N] [--no-render]
+python test-feedforward.py [config_filename] [genome_path] [--snapshot N] [--barrier-length L] [--angled-barrier] [--disable-barrier-sensor] [--episodes N] [--no-render]
 ```
 
 When rendering is enabled (default), the test window now includes a real-time
@@ -46,9 +46,19 @@ No connectivity is drawn; node color/value indicates activation level.
 - ANJI mode knobs in `config-feedforward-anji`
 - `barrier_length` and `barrier_in_path` can be set in config;
   `--barrier-length` overrides config at runtime.
+- `barrier_sensor_enabled` can be set in config;
+  `--disable-barrier-sensor` forces it off at runtime.
+- `angled_barrier` can be set in config;
+  `--angled-barrier` enables short 90-degree end segments at both barrier ends.
+  End segments are about `1/5` of the main barrier length.
 - Fitness step penalties (CLI):
   - `--step-penalty-success P` (default `0.5`) applies when target is reached
   - `--step-penalty-all Q` (default `0.0`) applies to all episodes
+
+Barrier placement details:
+- Main barrier center is sampled between `1/4` and `3/4` along the initial
+  agent->target line.
+- Initial agent-target distance is constrained to at least `ARENA_SIZE/3`.
 
 ## Outputs
 

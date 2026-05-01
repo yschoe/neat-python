@@ -2,7 +2,7 @@
 fitness_criterion     = max
 fitness_threshold     = 987.0
 snapshot_interval     = 100
-pop_size              = 150
+pop_size              = 100
 reset_on_extinction   = False
 
 no_fitness_termination         = False
@@ -10,6 +10,10 @@ no_fitness_termination         = False
 algorithm_mode        = anji
 
 [DefaultGenome]
+barrier_in_path = true
+barrier_length = 100
+barrier_sensor_enabled = true
+angled_barrier = false
 # Inputs: distance to target, relative target angle, barrier-in-path flag.
 num_inputs              = 3
 num_hidden              = 0
@@ -19,9 +23,9 @@ initial_connection      = full_direct
 feed_forward            = False
 compatibility_disjoint_coefficient = 1.0
 compatibility_weight_coefficient   = 0.5
-conn_add_prob           = 0.2
+conn_add_prob           = 0.15
 conn_delete_prob        = 0.01
-node_add_prob           = 0.1
+node_add_prob           = 0.075
 node_delete_prob        = 0.1
 activation_default      = tanh
 activation_options      = tanh

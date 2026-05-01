@@ -112,3 +112,23 @@
   - Updated session records in `log.md` / `transcript.md`.
 - Status:
   - Navigation work remains in-progress; further tuning/validation is planned.
+
+## 2026-04-30
+
+- Navigation barrier controls and geometry updates (`examples/navigation/`):
+  - Added barrier sensor disable option in config and CLI:
+    - config key: `barrier_sensor_enabled` (all navigation configs)
+    - CLI: `--disable-barrier-sensor` in evolve/test scripts
+  - Improved barrier sensor behavior with short lookahead probe:
+    - third input now activates before immediate collision/revert situations
+  - Added angled barrier option in config and CLI:
+    - config key: `angled_barrier`
+    - CLI: `--angled-barrier` in evolve/test scripts
+  - Angled endcaps now use strict 90-degree geometry toward agent side.
+  - Endcap length set to about `1/5` of main barrier length.
+  - Updated barrier placement:
+    - center sampled between `1/4` and `3/4` along initial agent->target line
+    - initial agent-target distance constrained to at least `ARENA_SIZE/3`
+- Updated navigation docs (`examples/navigation/README.md`) for all new options and geometry semantics.
+- Status:
+  - Navigation remains active, in-progress tuning work.

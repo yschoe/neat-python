@@ -10,6 +10,10 @@ no_fitness_termination         = False
 algorithm_mode        = anji
 
 [DefaultGenome]
+barrier_in_path = true
+barrier_length = 100
+barrier_sensor_enabled = true
+angled_barrier = false
 # Inputs: distance to target, relative target angle, barrier-in-path flag.
 num_inputs              = 3
 num_hidden              = 0

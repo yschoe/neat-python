@@ -668,3 +668,48 @@ This transcript captures the main user requests, assistant responses, tool invoc
 
 ### Status note
 - This navigation work is explicitly ongoing; user asked to continue later if needed.
+
+---
+
+## 27. Navigation barrier sensor/geometry refinement (ongoing)
+
+### User request
+- Add config + CLI option to disable barrier sensor.
+- Change barrier placement to lie between 1/4 and 3/4 along agent->target line.
+- Enforce minimum initial agent-target distance of 1/3 arena size.
+- Add optional angled barrier ends toward agent side, short (~1/5 main length), then set angle to 90 degrees.
+
+### Assistant response (summary)
+- Added barrier sensor enable/disable plumbing:
+  - config key `barrier_sensor_enabled`
+  - CLI `--disable-barrier-sensor`
+  - applied to both evolve/test scripts.
+- Fixed barrier sensor behavior:
+  - added short forward-lookahead probe so sensor can activate before collision-revert loops.
+- Added angled barrier feature:
+  - config key `angled_barrier`
+  - CLI `--angled-barrier`
+  - collision/sensor distance now computed over all barrier segments (main + endcaps).
+- Updated geometry constraints:
+  - barrier center sampled between 1/4 and 3/4 along initial agent->target line
+  - minimum start-target distance enforced at `ARENA_SIZE/3`
+- Updated angled ends to strict 90-degree endcaps oriented toward agent side.
+
+### Files updated
+- `examples/navigation/evolve-feedforward.py`
+- `examples/navigation/test-feedforward.py`
+- `examples/navigation/config-feedforward`
+- `examples/navigation/config-feedforward-anji`
+- `examples/navigation/config-rnn`
+- `examples/navigation/config-rnn-anji`
+- `examples/navigation/README.md`
+
+### Tool invocations and outputs (highlights)
+- Multiple `apply_patch` updates to evolve/test/config/README files.
+- Verification checks:
+  - `python3 -m compileall -q examples/navigation/evolve-feedforward.py examples/navigation/test-feedforward.py`
+  - Output: `compile_ok`
+  - `rg` scans confirming `angled_barrier`/`--angled-barrier` and sensor-disable wiring in scripts and configs.
+
+### Status note
+- User explicitly indicated this is ongoing and will continue iteratively.
